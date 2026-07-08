@@ -16,4 +16,5 @@ local.properties
 
 .idea
 .kotlin
+.github
 *.jar
