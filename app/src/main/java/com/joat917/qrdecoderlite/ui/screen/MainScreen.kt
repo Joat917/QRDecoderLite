@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Button
@@ -41,6 +42,12 @@ fun MainScreen(
 ) {
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        viewModel.onImageSelected(uri)
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         viewModel.onImageSelected(uri)
     }
@@ -94,6 +101,30 @@ fun MainScreen(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "从相册",
+                fontSize = 16.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // "从文件" — 系统文件选择器
+        Button(
+            onClick = {
+                filePickerLauncher.launch(arrayOf("image/*"))
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.FolderOpen,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "从文件",
                 fontSize = 16.sp
             )
         }
