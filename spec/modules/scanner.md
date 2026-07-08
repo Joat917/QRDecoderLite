@@ -8,11 +8,37 @@ Data
 
 接收图片来源，调用 ML Kit 条码识别库执行解码。对原始结果做空值处理和排序后返回，**输出数据中的字段均为非空**。
 
-## 接口
+## 架构
+
+采用**接口 + 实现分离**，便于 ViewModel 单元测试：
 
 ```
-suspend scan(uri: Uri) → DecodeResult
-suspend scan(bitmap: Bitmap) → DecodeResult
+BarcodeScanner (接口)           ← 定义解码契约
+    ↑
+MlKitScanner (ML Kit 实现)      ← 生产环境使用
+    ↑
+Mock/FakeScanner (测试实现)     ← 单元测试注入
+```
+
+生产环境通过 ViewModel 构造器默认参数注入，测试时传入 fake 实现。
+
+## 接口定义
+
+```kotlin
+interface BarcodeScanner {
+    suspend fun scan(uri: Uri): DecodeResult
+    suspend fun scan(bitmap: Bitmap): DecodeResult
+    fun close()
+}
+```
+
+ViewModel 构造器接收 `BarcodeScanner` 并设默认值：
+
+```kotlin
+class AppViewModel(
+    application: Application,
+    private val scanner: BarcodeScanner = MlKitScanner(application)
+) : AndroidViewModel(application)
 ```
 
 ## 输入
@@ -76,7 +102,7 @@ DecodedBarcode
 
 ## 生命周期
 
-Scanner 实例作为 AppViewModel 的属性创建，ViewModel 初始化时创建，`onCleared()` 时调用 `close()` 释放。
+`MlKitScanner` 实例作为 `AppViewModel` 的属性创建，ViewModel 初始化时创建，`onCleared()` 时调用 `close()` 释放。ViewModel 通过 `BarcodeScanner` 接口持有实例，不依赖具体实现。
 
 ## 边界
 
@@ -153,8 +179,11 @@ scan(uri) / scan(bitmap)
 
 ## 依赖
 
-- `com.google.mlkit:barcode-scanning`
+- `com.google.mlkit:barcode-scanning`（仅 MlKitScanner 依赖）
+- `BarcodeScanner` 接口本身无外部依赖
 
 ## 消费方
 
-`DecodeResult` 映射为 `DecodeUiState(barcodes, decodeError)`，由 ui-result 模块处理。消费方拿到的 `cornerPoints` 均为非空，可直接用于绘制。
+`AppViewModel` 通过 `BarcodeScanner` 接口调用解码，`DecodeResult` 映射为 `DecodeUiState(barcodes, decodeError)`，由 ui-result 模块处理。消费方拿到的 `cornerPoints` 均为非空，可直接用于绘制。
+
+测试时 ViewModel 可注入 fake `BarcodeScanner` 实现，无需 ML Kit 依赖。

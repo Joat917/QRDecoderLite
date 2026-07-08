@@ -10,10 +10,10 @@
 │  │ Logo+按钮 │◄──►│ 图片+卡片    │◄──► AppUiState              │
 │  │           │    │              │    ┌─ activeSheet: Sheet?  │
 │  └──────────┘    └──────────────┘    └─ DecodeUiState         │
-│       │                │                                       │
-│       │ 选择图片       │ 复制/打开/返回                          │
-│       ▼                ▼                                       │
-│  系统 PhotoPicker    Clipboard / Browser                        │
+│       │                │                │                      │
+│       │ 选择图片       │ 复制/打开/返回  │ BarcodeScanner 接口  │
+│       ▼                ▼                ▼                      │
+│  系统 PhotoPicker    Clipboard / Browser  MlKitScanner (ML Kit)│
 ├───────────────────────────────────────────────────────────────┤
 │  Domain / Data Layer (简化)                                    │
 │                                                               │
@@ -126,18 +126,22 @@ sealed interface DecodeResult {
 ## ViewModel 接口
 
 ```kotlin
-class AppViewModel : ViewModel() {
+class AppViewModel(
+    application: Application,
+    private val scanner: BarcodeScanner = MlKitScanner(application)
+) : AndroidViewModel(application) {
 
     val uiState: StateFlow<AppUiState>
     val decodeUiState: StateFlow<DecodeUiState>
 
-    fun onPickFromAlbum()              // 用户点击"从相册"
-    fun onImageSelected(uri: Uri?)     // 图片选择器返回
-    fun onBackToMain()                 // 返回主界面
-    fun onCopy(content: String)        // 复制到剪贴板
-    fun onOpenLink(url: String)        // 系统浏览器打开 URL
+    fun onImageSelected(uri: Uri?)       // 图片选择器返回
+    fun onBackToMain()                   // 返回主界面
+    fun onCopy(content: String, ...)     // 复制到剪贴板
+    fun onOpenLink(url: String, ...)     // 系统浏览器打开 URL
 }
 ```
+
+> 注：`scanner` 参数提供默认值 `MlKitScanner(application)`，生产环境无需显式传入；测试时传入 mock/fake 实现。`onCopy`/`onOpenLink` 额外接收 `context: Context` 参数。
 
 ## 结果页 UI 构成
 
@@ -198,7 +202,8 @@ class AppViewModel : ViewModel() {
 
 | 组件 | 依赖 |
 |------|------|
-| 结果页 | 解码模块输出 `DecodeResult`、`DecodedBarcode` 模型 |
+| ViewModel | `BarcodeScanner` 接口（通过构造器注入） |
+| 结果页 | `DecodeResult`、`DecodedBarcode` 模型 |
 | 结果页 | Coil (`io.coil-kt:coil-compose`) |
 | 结果页 | 不依赖相机模块、历史记录模块 |
 | 主界面 | 不依赖解码模块（仅触发导航） |

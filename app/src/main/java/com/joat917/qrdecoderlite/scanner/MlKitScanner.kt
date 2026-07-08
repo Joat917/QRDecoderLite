@@ -16,13 +16,19 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CancellationException
 
-class Scanner(private val context: Context) {
+/**
+ * ML Kit 实现的解码器。
+ *
+ * 封装 [com.google.mlkit.vision.barcode.BarcodeScanner]，
+ * 处理异常映射、空值过滤、排序。
+ */
+class MlKitScanner(private val context: Context) : BarcodeScanner {
 
     private val barcodeScanner = BarcodeScanning.getClient()
 
     // ── 公开接口 ────────────────────────────────────────────────────────
 
-    suspend fun scan(uri: Uri): DecodeResult = withContext(Dispatchers.IO) {
+    override suspend fun scan(uri: Uri): DecodeResult = withContext(Dispatchers.IO) {
         val image = try {
             InputImage.fromFilePath(context, uri)
         } catch (e: FileNotFoundException) {
@@ -45,7 +51,7 @@ class Scanner(private val context: Context) {
         processImage(image)
     }
 
-    suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
+    override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
         if (bitmap == null) {
             return@withContext DecodeResult.Failure(
                 "[IllegalArgumentException] 图片数据为空"
@@ -60,7 +66,7 @@ class Scanner(private val context: Context) {
         processImage(image)
     }
 
-    fun close() {
+    override fun close() {
         barcodeScanner.close()
     }
 
@@ -157,11 +163,11 @@ class Scanner(private val context: Context) {
 
     // ── 工具函数 ────────────────────────────────────────────────────────
 
-    private fun bytesToHex(bytes: ByteArray): String =
-        bytes.joinToString(" ") { "%02X".format(it) }
-
     companion object {
-        private fun formatToString(format: Int): String = when (format) {
+        internal fun bytesToHex(bytes: ByteArray): String =
+            bytes.joinToString(" ") { "%02X".format(it) }
+
+        internal fun formatToString(format: Int): String = when (format) {
             Barcode.FORMAT_QR_CODE -> "QR_CODE"
             Barcode.FORMAT_DATA_MATRIX -> "DATA_MATRIX"
             Barcode.FORMAT_UPC_A -> "UPC_A"

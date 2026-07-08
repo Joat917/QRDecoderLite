@@ -13,16 +13,18 @@ import com.joat917.qrdecoderlite.model.AppUiState
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
-import com.joat917.qrdecoderlite.scanner.Scanner
+import com.joat917.qrdecoderlite.scanner.BarcodeScanner
+import com.joat917.qrdecoderlite.scanner.MlKitScanner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AppViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val scanner = Scanner(application)
+class AppViewModel(
+    application: Application,
+    private val scanner: BarcodeScanner = MlKitScanner(application)
+) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
