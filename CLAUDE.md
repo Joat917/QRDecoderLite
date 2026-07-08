@@ -10,7 +10,7 @@ QRDecoderLite — 轻量级 Android 二维码解码应用。使用 Jetpack Compo
 - **compileSdk / targetSdk**: 36 (Android 15)
 - **minSdk**: 24 (Android 7.0)
 - **语言**: Kotlin
-- **构建系统**: Gradle 9.4.1 + AGP 9.2.1 + Kotlin 2.2.10
+- **构建系统**: Gradle 9.4.1 + AGP 9.2.1 + Kotlin 2.4.0
 - **依赖管理**: Gradle Version Catalog (`gradle/libs.versions.toml`)
 
 ## 构建与运行命令
@@ -51,10 +51,13 @@ QRDecoderLite — 轻量级 Android 二维码解码应用。使用 Jetpack Compo
 
 | 类别 | 依赖 |
 |------|------|
-| Compose | compose-bom 2026.02.01, Material3, UI, UI Graphics |
+| Compose | compose-bom 2026.05.00, Material3, UI, UI Graphics |
 | Activity | activity-compose 1.13.0 |
 | Lifecycle | lifecycle-runtime-ktx 2.10.0 |
 | Core | core-ktx 1.18.0 |
+| ML Kit | barcode-scanning 17.3.0 |
+| 图片加载 | Coil 3.5.0 (coil-compose) |
+| 协程 | coroutines-play-services 1.11.0 |
 | 测试 | JUnit 4.13.2, Espresso 3.7.0, Compose UI Test |
 
 ### 设计约定

@@ -57,13 +57,17 @@ QRDecoderLite/
 | `gradle/libs.versions.toml` | 版本目录 | 集中管理所有依赖版本，构建文件通过 `libs.*` 引用 |
 | `gradle.properties` | Gradle JVM 参数 | `-Xmx2048m`，UTF-8 编码 |
 
-### 源代码（当前为模板，待开发）
+### 源代码（实现状态）
 
-| 文件 | 当前内容 | 后续方向 |
-|------|----------|----------|
-| `MainActivity.kt` | 仅显示 "Hello Android" 字符串 | 二维码扫描入口，权限请求，相机管理 |
-| `ui/theme/` | Material3 默认主题 | 可沿用，后续增加品牌色 |
-| `AndroidManifest.xml` | 单 Activity 声明 | 需添加相机权限、可能的后处理 Activity |
+| 文件 | 当前内容 | 说明 |
+|------|----------|------|
+| `MainActivity.kt` | `when(sheet)` 切换 MainScreen / ResultScreen | 单 Activity + Sheet 导航已实现 |
+| `model/Models.kt` | `AppUiState`、`Sheet`、`DecodeUiState`、`DecodedBarcode`、`DecodeResult` | 全部数据模型已定义 |
+| `viewmodel/AppViewModel.kt` | 图片选择 → 解码 → 结果展示的完整流程 | ViewModel + StateFlow 已实现 |
+| `scanner/Scanner.kt` | ML Kit 解码封装，含异常映射、排序、空值过滤 | 核心解码逻辑已实现 |
+| `ui/screen/MainScreen.kt` | Logo + "从相册"/"从相机"/"从历史"按钮 | PhotoPicker 集成完成 |
+| `ui/screen/ResultScreen.kt` | 图片 + 多边形标注 + 卡片列表 + 操作栏 + 状态指示 | 结果页完整实现 |
+| `ui/theme/` | Dynamic Color + 亮/暗模式回退 | 主题系统已配置 |
 
 ### 技术栈现状
 
@@ -71,7 +75,9 @@ QRDecoderLite/
 |------|------|
 | Gradle | 9.4.1 |
 | AGP | 9.2.1 |
-| Kotlin | 2.2.10 |
-| Compose BOM | 2026.02.01 |
+| Kotlin | 2.4.0 |
+| Compose BOM | 2026.05.00 |
+| ML Kit Barcode Scanning | 17.3.0 |
+| Coil | 3.5.0 |
 | compileSdk / targetSdk | 36 |
 | minSdk | 24 |
