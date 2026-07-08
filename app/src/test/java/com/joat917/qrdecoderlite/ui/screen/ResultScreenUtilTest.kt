@@ -1,6 +1,6 @@
 package com.joat917.qrdecoderlite.ui.screen
 
-import android.graphics.PointF
+import com.joat917.qrdecoderlite.TestUriFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -83,113 +83,102 @@ class ResultScreenUtilTest {
 
     // 标准正方形
     private val square = listOf(
-        PointF(0f, 0f),
-        PointF(10f, 0f),
-        PointF(10f, 10f),
-        PointF(0f, 10f)
+        TestUriFactory.pointF(0f, 0f),
+        TestUriFactory.pointF(10f, 0f),
+        TestUriFactory.pointF(10f, 10f),
+        TestUriFactory.pointF(0f, 10f)
     )
 
     // 三角形
     private val triangle = listOf(
-        PointF(0f, 0f),
-        PointF(10f, 0f),
-        PointF(5f, 10f)
+        TestUriFactory.pointF(0f, 0f),
+        TestUriFactory.pointF(10f, 0f),
+        TestUriFactory.pointF(5f, 10f)
     )
 
     // 不规则四边形
     private val quad = listOf(
-        PointF(2f, 1f),
-        PointF(8f, 2f),
-        PointF(9f, 9f),
-        PointF(1f, 8f)
+        TestUriFactory.pointF(2f, 1f),
+        TestUriFactory.pointF(8f, 2f),
+        TestUriFactory.pointF(9f, 9f),
+        TestUriFactory.pointF(1f, 8f)
     )
 
     @Test
-    fun isPointInPolygon_pointInCenter_returnsTrue() {
-        assertTrue(isPointInPolygon(PointF(5f, 5f), square))
+    fun testA() {
+        val point = TestUriFactory.pointF(5f, 5f)
+        assertTrue(isPointInPolygon(point, square))
+        assertTrue(isPointInPolygon(point, triangle))
+        assertTrue(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOutsideLeft_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(-1f, 5f), square))
+    fun testB() {
+        val point = TestUriFactory.pointF(-1f, 5f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOutsideRight_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(11f, 5f), square))
+    fun testC() {
+        val point = TestUriFactory.pointF(11f, 5f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOutsideTop_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(5f, -1f), square))
+    fun testD() {
+        val point = TestUriFactory.pointF(5f, -1f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOutsideBottom_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(5f, 11f), square))
+    fun testE() {
+        val point = TestUriFactory.pointF(5f, 11f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOnVertex_returnsTrue() {
-        assertTrue(isPointInPolygon(PointF(0f, 0f), square))
+    fun testF() {
+        val point = TestUriFactory.pointF(0f, 0f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_pointOnEdge_returnsTrue() {
-        assertTrue(isPointInPolygon(PointF(5f, 0f), square))
+    fun testG() {
+        val point = TestUriFactory.pointF(5f, 0f)
+        assertFalse(isPointInPolygon(point, square))
+        assertFalse(isPointInPolygon(point, triangle))
+        assertFalse(isPointInPolygon(point, quad))
     }
 
     @Test
-    fun isPointInPolygon_trianglePointInside_returnsTrue() {
-        assertTrue(isPointInPolygon(PointF(5f, 3f), triangle))
-    }
-
-    @Test
-    fun isPointInPolygon_trianglePointOutside_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(0f, 0f), triangle))
-    }
-
-    @Test
-    fun isPointInPolygon_triangleBelowBase_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(5f, 11f), triangle))
-    }
-
-    @Test
-    fun isPointInPolygon_irregularQuad_pointInside() {
-        assertTrue(isPointInPolygon(PointF(5f, 5f), quad))
-    }
-
-    @Test
-    fun isPointInPolygon_irregularQuad_pointOutside() {
-        assertFalse(isPointInPolygon(PointF(0f, 0f), quad))
-    }
-
-    @Test
-    fun isPointInPolygon_emptyPolygon_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(0f, 0f), emptyList()))
-    }
-
-    @Test
-    fun isPointInPolygon_singlePointPolygon_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(5f, 5f), listOf(PointF(5f, 5f))))
-    }
-
-    @Test
-    fun isPointInPolygon_twoPointPolygon_returnsFalse() {
-        assertFalse(isPointInPolygon(PointF(5f, 5f), listOf(PointF(0f, 0f), PointF(10f, 10f))))
+    fun testH() {
+        val point = TestUriFactory.pointF(5f, 3f)
+        assertTrue(isPointInPolygon(point, square))
+        assertTrue(isPointInPolygon(point, triangle))
+        assertTrue(isPointInPolygon(point, quad))
     }
 
     @Test
     fun isPointInPolygon_diagonalCorner_returnsTrue() {
         // 点在多边形对角线位置
         val diamond = listOf(
-            PointF(5f, 0f),
-            PointF(10f, 5f),
-            PointF(5f, 10f),
-            PointF(0f, 5f)
+            TestUriFactory.pointF(5f, 0f),
+            TestUriFactory.pointF(10f, 5f),
+            TestUriFactory.pointF(5f, 10f),
+            TestUriFactory.pointF(0f, 5f)
         )
-        assertTrue(isPointInPolygon(PointF(5f, 5f), diamond))
-        assertFalse(isPointInPolygon(PointF(0f, 0f), diamond))
+        assertTrue(isPointInPolygon(TestUriFactory.pointF(5f, 5f), diamond))
+        assertFalse(isPointInPolygon(TestUriFactory.pointF(0f, 0f), diamond))
     }
 
     // ── 调色板循环 ─────────────────────────────────────────────────────

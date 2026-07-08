@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.Mockito
 
 /**
  * P0 测试：ViewModel 状态转换。
@@ -35,7 +36,7 @@ class AppViewModelTest {
 
     @Before
     fun setUp() {
-        application = object : Application() {}
+        application = Mockito.mock(Application::class.java)
         fakeScanner = FakeBarcodeScanner()
         viewModel = AppViewModel(application, fakeScanner)
     }

@@ -1,6 +1,6 @@
 package com.joat917.qrdecoderlite.scanner
 
-import android.graphics.PointF
+import com.joat917.qrdecoderlite.TestUriFactory
 import com.joat917.qrdecoderlite.model.DecodedBarcode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -206,7 +206,7 @@ class MlKitScannerTest {
 
     @Test
     fun sortToDecoded_decodedFieldsPreserved() {
-        val pts = listOf(PointF(1f, 2f), PointF(3f, 4f))
+        val pts = listOf(TestUriFactory.pointF(1f, 2f), TestUriFactory.pointF(3f, 4f))
         val decoded = DecodedBarcode(content = "data", format = "QR_CODE", cornerPoints = pts)
         val sb = SortableBarcode(decoded = decoded, isRawValue = true, isOriginalPoints = false)
 
@@ -237,7 +237,7 @@ class MlKitScannerTest {
         decoded = DecodedBarcode(
             content = content,
             format = "QR_CODE",
-            cornerPoints = listOf(PointF(0f, 0f))
+            cornerPoints = listOf(TestUriFactory.pointF(0f, 0f))
         ),
         isRawValue = isRawValue,
         isOriginalPoints = isOriginalPoints

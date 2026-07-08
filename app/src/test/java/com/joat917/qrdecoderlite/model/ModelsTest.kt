@@ -1,7 +1,7 @@
 package com.joat917.qrdecoderlite.model
 
 import android.graphics.PointF
-import android.net.Uri
+import com.joat917.qrdecoderlite.TestUriFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
@@ -15,6 +15,8 @@ import org.junit.Test
  */
 class ModelsTest {
 
+    private val aUri = TestUriFactory.create()
+
     // ── AppUiState ─────────────────────────────────────────────────────
 
     @Test
@@ -25,14 +27,13 @@ class ModelsTest {
 
     @Test
     fun appUiState_withSheet() {
-        val uri = Uri.EMPTY
-        val state = AppUiState(activeSheet = Sheet.Result(uri))
+        val state = AppUiState(activeSheet = Sheet.Result(aUri))
         assertNotNull(state.activeSheet)
     }
 
     @Test
     fun appUiState_copy() {
-        val state1 = AppUiState(activeSheet = Sheet.Result(Uri.EMPTY))
+        val state1 = AppUiState(activeSheet = Sheet.Result(aUri))
         val state2 = state1.copy(activeSheet = null)
         assertNull(state2.activeSheet)
     }
@@ -41,22 +42,20 @@ class ModelsTest {
 
     @Test
     fun sheetResult_holdsUri() {
-        val uri = Uri.EMPTY
-        val sheet = Sheet.Result(uri)
-        assertEquals(uri, sheet.imageUri)
+        val sheet = Sheet.Result(aUri)
+        assertEquals(aUri, sheet.imageUri)
     }
 
     @Test
     fun sheetResult_equals() {
-        val uri = Uri.EMPTY
-        assertEquals(Sheet.Result(uri), Sheet.Result(uri))
+        assertEquals(Sheet.Result(aUri), Sheet.Result(aUri))
     }
 
     // ── DecodeUiState ──────────────────────────────────────────────────
 
     @Test
     fun decodeUiState_defaultBarcodesIsNull() {
-        val state = DecodeUiState(imageUri = Uri.EMPTY)
+        val state = DecodeUiState(imageUri = aUri)
         assertNull(state.barcodes)
         assertNull(state.decodeError)
     }
@@ -64,14 +63,14 @@ class ModelsTest {
     @Test
     fun decodeUiState_successState() {
         val barcode = DecodedBarcode("content", "QR_CODE", emptyList())
-        val state = DecodeUiState(imageUri = Uri.EMPTY, barcodes = listOf(barcode))
+        val state = DecodeUiState(imageUri = aUri, barcodes = listOf(barcode))
         assertEquals(1, state.barcodes?.size)
         assertNull(state.decodeError)
     }
 
     @Test
     fun decodeUiState_emptyResultState() {
-        val state = DecodeUiState(imageUri = Uri.EMPTY, barcodes = emptyList())
+        val state = DecodeUiState(imageUri = aUri, barcodes = emptyList())
         assertNotNull(state.barcodes)
         assertEquals(0, state.barcodes?.size)
         assertNull(state.decodeError)
@@ -79,14 +78,14 @@ class ModelsTest {
 
     @Test
     fun decodeUiState_errorState() {
-        val state = DecodeUiState(imageUri = Uri.EMPTY, decodeError = "[Error] 测试错误")
+        val state = DecodeUiState(imageUri = aUri, decodeError = "[Error] 测试错误")
         assertNull(state.barcodes)
         assertNotNull(state.decodeError)
     }
 
     @Test
     fun decodeUiState_copy() {
-        val state1 = DecodeUiState(imageUri = Uri.EMPTY, barcodes = listOf(
+        val state1 = DecodeUiState(imageUri = aUri, barcodes = listOf(
             DecodedBarcode("a", "QR_CODE", emptyList())
         ))
         val state2 = state1.copy(barcodes = emptyList())
@@ -98,7 +97,10 @@ class ModelsTest {
 
     @Test
     fun decodedBarcode_fields() {
-        val points = listOf(PointF(0f, 0f), PointF(1f, 1f))
+        val points = listOf(
+            TestUriFactory.pointF(0f, 0f),
+            TestUriFactory.pointF(1f, 1f)
+        )
         val barcode = DecodedBarcode(
             content = "https://example.com",
             format = "QR_CODE",
@@ -111,7 +113,7 @@ class ModelsTest {
 
     @Test
     fun decodedBarcode_equalsAndHashCode() {
-        val pts = listOf(PointF(0f, 0f))
+        val pts = listOf(TestUriFactory.pointF(0f, 0f))
         val b1 = DecodedBarcode("a", "QR_CODE", pts)
         val b2 = DecodedBarcode("a", "QR_CODE", pts)
         assertEquals(b1, b2)
@@ -120,7 +122,7 @@ class ModelsTest {
 
     @Test
     fun decodedBarcode_notEqual() {
-        val pts = listOf(PointF(0f, 0f))
+        val pts = listOf(TestUriFactory.pointF(0f, 0f))
         val b1 = DecodedBarcode("a", "QR_CODE", pts)
         val b2 = DecodedBarcode("b", "QR_CODE", pts)
         assertNotEquals(b1, b2)

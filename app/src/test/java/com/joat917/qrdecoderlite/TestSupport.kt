@@ -1,5 +1,6 @@
 package com.joat917.qrdecoderlite
 
+import android.graphics.PointF
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -9,37 +10,44 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
+import org.mockito.Mockito
 
 /**
  * JUnit Rule：将主协程调度器替换为 [TestDispatcher]，
  * 使 `viewModelScope.launch` 在 JVM 单元测试中可同步执行。
  */
-class MainDispatcherRule @OptIn(ExperimentalCoroutinesApi::class) constructor(
+@OptIn(ExperimentalCoroutinesApi::class)
+class MainDispatcherRule(
     val testDispatcher: TestDispatcher = UnconfinedTestDispatcher()
 ) : TestWatcher() {
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun starting(description: Description) {
         Dispatchers.setMain(testDispatcher)
     }
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun finished(description: Description) {
         Dispatchers.resetMain()
     }
 }
 
 /**
- * 在 JVM 单元测试中创建 [Uri] 实例的工具。
+ * 在 JVM 单元测试中创建 Android 框架类实例的工具。
  *
- * `android.net.Uri` 在 android.jar 中是 stub 类，`Uri.parse()`
- * 返回 null。通过反射绕过构造函数限制，返回一个非 null 的
- * Uri 实例，使 ViewModel 的 `onImageSelected(uri)` 可触发扫描流程。
+ * `android.net.Uri` 是抽象类，在 mockable jar 中无法直接实例化；
+ * `android.graphics.PointF` 的构造器可能抛出 Stub! RuntimeException。
+ * 本工厂统一用 Mockito 创建实例。
  */
 object TestUriFactory {
 
-    private val uriConstructor by lazy {
-        Uri::class.java.getDeclaredConstructor().also { it.isAccessible = true }
-    }
+    /** 创建一个测试用 [Uri] mock。 */
+    fun create(): Uri = Mockito.mock(Uri::class.java)
 
-    /** 创建一个可用的测试用 URI 实例。 */
-    fun create(): Uri = uriConstructor.newInstance()
+    /** 创建测试用 [PointF]，优先直接构造，失败时回退到 Mockito + 反射设值。 */
+    fun pointF(x: Float = 0f, y: Float = 0f): PointF =
+        try {
+            PointF(x, y)
+        } catch (_: Exception) {
+            Mockito.mock(PointF::class.java).also { p ->
+                p::class.java.getField("x").setFloat(p, x)
+                p::class.java.getField("y").setFloat(p, y)
+            }
+        }
 }
