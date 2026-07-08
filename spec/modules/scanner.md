@@ -82,12 +82,74 @@ Scanner 实例作为 AppViewModel 的属性创建，ViewModel 初始化时创建
 
 | 场景 | 行为 |
 |------|------|
-| URI 不可读或格式不受支持 | Failure |
 | 成功但无条码 | Success(emptyList()) |
 | 扫描过程被取消 | 静默终止，不返回 |
-| Bitmap 为 null 或已回收 | Failure |
 | rawValue 和 rawBytes 皆 null | 丢弃该条目 |
 | cornerPoints 和 boundingBox 皆 null | 丢弃该条目 |
+
+## 异常与错误映射
+
+`scan(uri)` 和 `scan(bitmap)` 内部在两个明确的异常边界处 try-catch，将异常映射为 `Failure(reason)`。reason 值的格式约定：
+
+```
+[异常类名] 用户友好的错误描述
+```
+
+### 异常边界一：InputImage.fromFilePath
+
+```kotlin
+InputImage.fromFilePath(context, uri)
+```
+
+可能抛出的异常：
+
+| 条件 | reason |
+|------|--------|
+| `FileNotFoundException` | `[FileNotFoundException] 未找到图片文件，文件可能已被移动或删除` |
+| `IOException`（非 FileNotFound） | `[IOException] 无法读取图片，请检查文件权限` |
+| `IllegalArgumentException`（如无效 URI scheme） | `[IllegalArgumentException] 不支持的图片格式或无效的文件路径` |
+| 其他非预期 `Exception` | `[${e::class.simpleName}] ${e.message}`（忠实返回类名和详细信息） |
+
+### 异常边界二：barcodeScanner.process
+
+```kotlin
+barcodeScanner.process(image)
+```
+
+可能抛出的异常：
+
+| 条件 | reason |
+|------|--------|
+| `MlKitException` | `[MlKitException] 二维码识别失败，请重试` |
+| `CancellationException` | 静默忽略，不返回 Failure（协程被取消时不消费异常） |
+| 其他非预期 `Exception` | `[${e::class.simpleName}] ${e.message}`（忠实返回类名和详细信息） |
+
+### 前置检查（scan(bitmap) 入口）
+
+| 条件 | reason |
+|------|--------|
+| bitmap 参数为 null | `[IllegalArgumentException] 图片数据为空` |
+| bitmap.isRecycled 为 true | `[IllegalStateException] 图片数据已失效，请重新选择` |
+
+### 处理流程说明
+
+```
+scan(uri) / scan(bitmap)
+  │
+  ├─ 前置检查 ────────────────── 失败 → Failure(reason)
+  │
+  ├─ try ①: InputImage.fromFilePath ── 异常 → Failure(reason)
+  │
+  ├─ try ②: barcodeScanner.process ─── 异常 → Failure(reason)
+  │                                       CancellationException → 静默忽略
+  │
+  └─ 空值过滤 + 排序 ─────────── 纯逻辑，不抛异常
+       │
+       ├─ 结果列表为空 → Success(emptyList())
+       └─ 结果列表非空 → Success(sortedBarcodes)
+```
+
+"未识别到二维码"（Success 空列表）与"识别失败"（Failure）在语义上有明确区分——前者图片能正常读取但没有条码，后者是读取或识别过程中出现了异常。
 
 ## 依赖
 
