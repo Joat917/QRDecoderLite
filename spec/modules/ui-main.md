@@ -22,6 +22,9 @@
 │  └────────────────────────┘  │  圆角、高度约 56dp
 │                              │  左侧 Material Icon：image
 │  ┌────────────────────────┐  │
+│  │ icon  从文件             │  │  主按钮：正常色（Primary）
+│  └────────────────────────┘  │  左侧 Material Icon：folder_open
+│  ┌────────────────────────┐  │
 │  │ icon  从相机             │  │  灰色按钮，不可点击
 │  └────────────────────────┘  │  预留，当前版本不实现
 │                              │  左侧 Material Icon：camera_alt
@@ -57,17 +60,25 @@
 | 按钮 | 当前版本 | 状态 |
 |------|---------|------|
 | 从相册 | ✅ 可点击 | Primary 色填充，点击触发系统图片选择器 |
-| 从相机 | ❌ 未实现 | 灰色不可点击，右下角标注"即将推出"（可选） |
-| 从历史 | ❌ 未实现 | 灰色不可点击，右下角标注"即将推出"（可选） |
+| 从文件 | ✅ 可点击 | Primary 色填充，点击触发系统文件选择器（过滤图片） |
+| 从相机 | ❌ 未实现 | 灰色不可点击 |
+| 从历史 | ❌ 未实现 | 灰色不可点击 |
 
-三个按钮纵向居中排列，与 Logo 间距约 48dp。
+四个按钮纵向居中排列，与 Logo 间距约 48dp。
 
 ## 交互
 
 ### 点击"从相册"
 
-1. 调用系统图片选择器（`PickVisualMedia` / `GetContent`）
+1. 调用系统图片选择器（`PickVisualMedia`）
 2. 用户选择图片 → 将 URI 传给 ViewModel
+3. ViewModel 立即将 `activeSheet` 设为 `Sheet.Result(uri)`
+4. 用户取消选择 → 无操作，留在主界面
+
+### 点击"从文件"
+
+1. 调用系统文件选择器（`OpenDocument`），MIME 过滤为 `image/*`
+2. 用户选择图片文件 → 将 URI 传给 ViewModel（与"从相册"共用同一入口）
 3. ViewModel 立即将 `activeSheet` 设为 `Sheet.Result(uri)`
 4. 用户取消选择 → 无操作，留在主界面
 
@@ -92,10 +103,7 @@ class AppViewModel : ViewModel() {
 
     // ── 操作方法 ──
 
-    /** 用户点击了"从相册"按钮 */
-    fun onPickFromAlbum()
-
-    /** 系统图片选择器返回了结果 */
+    /** 图片/文件选择器返回了结果（URI 来源无关） */
     fun onImageSelected(uri: Uri?)
 
     /** 关闭结果页，返回主界面 */
@@ -125,5 +133,6 @@ sealed interface Sheet {
 
 | 场景 | 行为 |
 |------|------|
-| 用户取消图片选择 | `onImageSelected(null)` → `activeSheet` 不变，留在主界面 |
-| 快速重复点击"从相册" | Compose 层 300ms 内忽略重复点击 |
+| 用户取消选择（相册/文件） | `onImageSelected(null)` → `activeSheet` 不变，留在主界面 |
+| 用户选择非图片文件 | `OpenDocument` 设置 `image/*` MIME 过滤，系统自动阻止 |
+| 快速重复点击按钮 | Compose 层 300ms 内忽略重复点击 |

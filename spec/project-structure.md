@@ -65,7 +65,7 @@ QRDecoderLite/
 | `model/Models.kt` | `AppUiState`、`Sheet`、`DecodeUiState`、`DecodedBarcode`、`DecodeResult` | 全部数据模型已定义 |
 | `viewmodel/AppViewModel.kt` | 图片选择 → 解码 → 结果展示的完整流程 | ViewModel + StateFlow 已实现 |
 | `scanner/Scanner.kt` | ML Kit 解码封装，含异常映射、排序、空值过滤 | 核心解码逻辑已实现 |
-| `ui/screen/MainScreen.kt` | Logo + "从相册"/"从相机"/"从历史"按钮 | PhotoPicker 集成完成 |
+| `ui/screen/MainScreen.kt` | Logo + "从相册"/"从文件"/"从相机"/"从历史"按钮 | PhotoPicker + OpenDocument 集成完成 |
 | `ui/screen/ResultScreen.kt` | 图片 + 多边形标注 + 卡片列表 + 操作栏 + 状态指示 | 结果页完整实现 |
 | `ui/theme/` | Dynamic Color + 亮/暗模式回退 | 主题系统已配置 |
 

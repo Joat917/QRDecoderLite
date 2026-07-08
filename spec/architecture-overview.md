@@ -31,8 +31,9 @@
 ```
 主界面 (MainScreen)
   └─ activeSheet == null
-     显示: Logo + "从相册" / "从相机" / "从历史" 按钮
-     交互: 点击"从相册" → 启动系统图片选择器
+     显示: Logo + "从相册" / "从文件" / "从相机" / "从历史" 按钮
+     交互: 点击"从相册" → 系统图片选择器
+          点击"从文件" → 系统文件选择器（过滤图片类型）
 
         用户选择图片后:
         AppViewModel.onImageSelected(uri)
@@ -53,8 +54,8 @@
 ## 数据流
 
 ```
-用户点击"从相册"
-  → 系统 PhotoPicker (PickVisualMedia)
+用户点击"从相册"（或"从文件"）
+  → 系统图片/文件选择器 (PickVisualMedia / OpenDocument)
   → URI 回调 → AppViewModel.onImageSelected(uri)
       ├─ activeSheet = Sheet.Result(uri)  → 页面切换到结果页
       │                                      (此时 DecodeUiState =
