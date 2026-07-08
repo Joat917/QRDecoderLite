@@ -119,17 +119,130 @@ sealed interface `Sheet.Result` 被设为当前页面时，以全屏页面的形
 
 用于区分不同二维码的一组高对比颜色。按序分配：
 
-| 索引 | 用途 |
-|------|------|
-| 0 | 第一个二维码的多边形填充/边框/卡片色 |
-| 1 | 第二个二维码 |
-| 2 | 第三个二维码 |
-| ... | 依此类推，超过数量则循环 |
+| 索引 | 颜色 | HEX | 用途 |
+|------|------|-----|------|
+| 0 | 紫色 | `#673AB7` | 第一个二维码 |
+| 1 | 橙色 | `#FF5722` | 第二个二维码 |
+| 2 | 青色 | `#009688` | 第三个二维码 |
+| 3 | 粉色 | `#E91E63` | 第四个二维码 |
+| 4 | 靛蓝 | `#3F51B5` | 第五个二维码 |
+| 5 | 琥珀 | `#FFA000` | 第六个二维码 |
 
-颜色值待定，需满足：
-- 彼此视觉可区分
-- 半透明填充时不影响图片识别
-- 暗色/亮色主题下都有可读性
+每个颜色的三个用途层（以紫色为例）：
+
+| 层 | 颜色值 | 说明 |
+|-----|---------|------|
+| 多边形填充 | `#40673AB7` | 主色 + 25% 透明度（~40 hex） |
+| 多边形边框 | `#FF673AB7` | 主色，不透明，2-3dp |
+| 卡片背景 | `#1A673AB7` | 主色 + 10% 透明度（~1A hex） |
+| 卡片色条 | `#FF673AB7` | 主色，不透明，4dp 高 |
+
+超过 6 个条码则从索引 0 循环使用。
+
+### URL 判定规则
+
+`open_in_new` 按钮是否显示的判定条件：
+
+| 内容前缀 | 判定结果 | 行为 |
+|---------|---------|------|
+| `http://` 或 `https://` 开头 | 是 URL | 显示 `open_in_new`，点击用系统浏览器打开 |
+| 其他（纯文本、数字、邮箱等） | 非 URL | 隐藏 `open_in_new` |
+
+仅检查前缀，**不**做额外格式校验。`www.example.com`（无协议头）不算 URL。
+
+### 图片加载方案
+
+**选型：Coil** (coil-compose)
+
+理由：Kotlin 协程原生、Compose 一等支持、自动采样加载防 OOM、内建缓存。
+
+用法：
+
+```kotlin
+// 显示用户选中的原图
+AsyncImage(
+    model = imageUri,               // 系统图片选择器返回的 Uri
+    contentDescription = "选中图片",
+    modifier = Modifier.fillMaxWidth(),
+    contentScale = ContentScale.Fit
+)
+```
+
+坐标映射：通过 `rememberAsyncImagePainter` 获取 `Painter`，其 `intrinsicSize` 为图片原始尺寸，与 Image 实际显示尺寸（`onSizeChanged` 获取）做比例换算，计算出角点在屏幕上的坐标。
+
+```kotlin
+val painter = rememberAsyncImagePainter(model = imageUri)
+val imageSize = painter.intrinsicSize     // 原始尺寸
+var displaySize by remember { mutableIntSizeStateOf(IntSize.Zero) }
+
+Box {
+    Image(
+        painter = painter,
+        contentDescription = "选中图片",
+        modifier = Modifier
+            .fillMaxWidth()
+            .onSizeChanged { displaySize = it },
+        contentScale = ContentScale.Fit
+    )
+    Canvas(modifier = Modifier.matchParentSize()) {
+        val scaleX = displaySize.width / imageSize.width
+        val scaleY = displaySize.height / imageSize.height
+        // 用 scaleX/scaleY 将 cornerPoints 映射到屏幕坐标后绘制多边形
+    }
+}
+```
+
+### 多边形点击检测
+
+**方案：射线法（Ray Casting）**
+
+原理：从点击点向右发出一条射线，统计与多边形所有边的交叉次数——**奇数为内部，偶数为外部**。
+
+```kotlin
+/**
+ * 射线法判断点击点是否在多边形内部。
+ * 从点 (x,y) 向右水平发射射线，统计与各边的交点数：
+ * 交点数为奇数 → 点在多边形内部
+ * 交点数为偶数 → 点在多边形外部
+ */
+fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
+    var inside = false
+    var j = polygon.size - 1
+    for (i in polygon.indices) {
+        // 检查边 (polygon[i] → polygon[j]) 是否与水平射线相交
+        if ((polygon[i].y > point.y) != (polygon[j].y > point.y) &&
+            point.x < (polygon[j].x - polygon[i].x) * (point.y - polygon[i].y) /
+                      (polygon[j].y - polygon[i].y) + polygon[i].x
+        ) {
+            inside = !inside   // 交叉一次，翻转结果
+        }
+        j = i
+    }
+    return inside
+}
+```
+
+在 Compose 中的集成：
+
+```kotlin
+Canvas(modifier = Modifier
+    .matchParentSize()
+    .pointerInput(barcodes) {
+        detectTapGestures { offset ->
+            // 将屏幕坐标还原为图片坐标
+            val tapX = offset.x / scaleX
+            val tapY = offset.y / scaleY
+            // 遍历所有条码，找到第一个命中的
+            val hitIndex = barcodes.indexOfFirst {
+                isPointInPolygon(PointF(tapX, tapY), it.cornerPoints)
+            }
+            if (hitIndex >= 0) onBarcodeClick(hitIndex)
+        }
+    }
+)
+```
+
+射线法相比 Android `Path.contains()`：避免系统 API 对四边形的误判，代码仅 10 行，可靠性验证充分。
 
 ## 交互
 
