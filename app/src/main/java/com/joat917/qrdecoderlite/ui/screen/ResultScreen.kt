@@ -26,9 +26,13 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import kotlin.math.roundToInt
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -46,6 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -66,32 +71,32 @@ internal val barcodePalette = listOf(
     BarcodeColorSet(
         fill = Color(0x40673AB7),
         stroke = Color(0xFF673AB7),
-        cardBackground = Color(0x40673AB7)
+        cardBackground = Color(0xFFF3E5F5)
     ),
     BarcodeColorSet(
         fill = Color(0x40FF5722),
         stroke = Color(0xFFFF5722),
-        cardBackground = Color(0x40FF5722)
+        cardBackground = Color(0xFFFBE9E7)
     ),
     BarcodeColorSet(
         fill = Color(0x40009688),
         stroke = Color(0xFF009688),
-        cardBackground = Color(0x40009688)
+        cardBackground = Color(0xFFE0F2F1)
     ),
     BarcodeColorSet(
         fill = Color(0x40E91E63),
         stroke = Color(0xFFE91E63),
-        cardBackground = Color(0x40E91E63)
+        cardBackground = Color(0xFFFCE4EC)
     ),
     BarcodeColorSet(
         fill = Color(0x403F51B5),
         stroke = Color(0xFF3F51B5),
-        cardBackground = Color(0x403F51B5)
+        cardBackground = Color(0xFFE8EAF6)
     ),
     BarcodeColorSet(
         fill = Color(0x40FFA000),
         stroke = Color(0xFFFFA000),
-        cardBackground = Color(0x40FFA000)
+        cardBackground = Color(0xFFFFF8E1)
     )
 )
 
@@ -126,48 +131,87 @@ fun ResultScreen(
     modifier: Modifier = Modifier
 ) {
     var menuIndex by remember { mutableIntStateOf(-1) }
+    var menuScreenPos by remember { mutableStateOf(Offset.Zero) }
+    var anchorPos by remember { mutableStateOf(Offset.Zero) }
     val dismissMenu = { menuIndex = -1 }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                dismissMenu()
-            }
+            .onGloballyPositioned { anchorPos = it.positionInWindow() }
     ) {
-        // 返回箭头
-        IconButton(onClick = onBackToMain) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回"
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    dismissMenu()
+                }
+        ) {
+            // 返回箭头
+            IconButton(onClick = onBackToMain) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回"
+                )
+            }
+
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                // 图片 + 多边形覆盖层
+                ImageWithOverlay(
+                    imageUri = decodeUiState.imageUri,
+                    barcodes = decodeUiState.barcodes,
+                    onBarcodeClick = { index, pos ->
+                        menuIndex = index
+                        menuScreenPos = pos
+                    }
+                )
+
+                // 状态区域
+                when {
+                    decodeUiState.decodeError != null -> ErrorDisplay(decodeUiState.decodeError)
+                    decodeUiState.barcodes == null -> DecodingIndicator()
+                    decodeUiState.barcodes.isEmpty() -> NoResultIndicator()
+                    else -> BarcodeCardList(
+                        barcodes = decodeUiState.barcodes,
+                        onBarcodeClick = { index, pos ->
+                            menuIndex = index
+                            menuScreenPos = pos
+                        }
+                    )
+                }
+            }
         }
 
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            // 图片 + 多边形覆盖层
-            ImageWithOverlay(
-                imageUri = decodeUiState.imageUri,
-                barcodes = decodeUiState.barcodes,
-                onBarcodeClick = { index ->
-                    menuIndex = index
+        // 弹出菜单 — 浮在点击的屏幕坐标位置
+        if (menuIndex >= 0 && decodeUiState.barcodes != null) {
+            val barcode = decodeUiState.barcodes[menuIndex]
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(
+                    (menuScreenPos.x - anchorPos.x).roundToInt(),
+                    (menuScreenPos.y - anchorPos.y).roundToInt()
+                ),
+                onDismissRequest = dismissMenu
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    shadowElevation = 6.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { onCopy(barcode.content); dismissMenu() }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "复制")
+                        }
+                        if (barcode.content.isUrl()) {
+                            IconButton(onClick = { onOpenLink(barcode.content); dismissMenu() }) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "打开")
+                            }
+                        }
+                    }
                 }
-            )
-
-            // 状态区域
-            when {
-                decodeUiState.decodeError != null -> ErrorDisplay(decodeUiState.decodeError)
-                decodeUiState.barcodes == null -> DecodingIndicator()
-                decodeUiState.barcodes.isEmpty() -> NoResultIndicator()
-                else -> BarcodeCardList(
-                    barcodes = decodeUiState.barcodes,
-                    menuIndex = menuIndex,
-                    onBarcodeClick = { index ->
-                        menuIndex = index
-                    },
-                    onDismissMenu = dismissMenu,
-                    onCopy = onCopy,
-                    onOpenLink = onOpenLink
-                )
             }
         }
     }
@@ -179,14 +223,19 @@ fun ResultScreen(
 private fun ImageWithOverlay(
     imageUri: android.net.Uri,
     barcodes: List<DecodedBarcode>?,
-    onBarcodeClick: (Int) -> Unit
+    onBarcodeClick: (Int, Offset) -> Unit
 ) {
     val painter = rememberAsyncImagePainter(model = imageUri)
     val imageSize = painter.intrinsicSize
     var displaySize by remember { mutableStateOf(IntSize.Zero) }
+    var boxWindowPos by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
 
-    Box {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { boxWindowPos = it.positionInWindow() }
+    ) {
         Image(
             painter = painter,
             contentDescription = "选中图片",
@@ -209,13 +258,14 @@ private fun ImageWithOverlay(
                     .matchParentSize()
                     .pointerInput(barcodes) {
                         detectTapGestures { offset ->
+                            val screenPos = boxWindowPos + offset
                             // 将屏幕坐标还原为图片坐标
                             val tapX = offset.x / scaleX
                             val tapY = offset.y / scaleY
                             val hitIndex = barcodes.indexOfFirst {
                                 isPointInPolygon(PointF(tapX, tapY), it.cornerPoints)
                             }
-                            if (hitIndex >= 0) onBarcodeClick(hitIndex)
+                            if (hitIndex >= 0) onBarcodeClick(hitIndex, screenPos)
                         }
                     }
             ) {
@@ -308,22 +358,14 @@ private fun ErrorDisplay(error: String) {
 @Composable
 private fun BarcodeCardList(
     barcodes: List<DecodedBarcode>,
-    menuIndex: Int,
-    onBarcodeClick: (Int) -> Unit,
-    onDismissMenu: () -> Unit,
-    onCopy: (String) -> Unit,
-    onOpenLink: (String) -> Unit
+    onBarcodeClick: (Int, Offset) -> Unit
 ) {
     Column(modifier = Modifier.padding(top = 8.dp)) {
         barcodes.forEachIndexed { index, barcode ->
             BarcodeCard(
                 barcode = barcode,
                 color = barcodePalette[index % barcodePalette.size],
-                showMenu = menuIndex == index,
-                onClick = { onBarcodeClick(index) },
-                onDismissMenu = onDismissMenu,
-                onCopy = { onCopy(barcode.content) },
-                onOpenLink = { onOpenLink(barcode.content) }
+                onClick = { screenPos -> onBarcodeClick(index, screenPos) }
             )
         }
     }
@@ -333,69 +375,41 @@ private fun BarcodeCardList(
 private fun BarcodeCard(
     barcode: DecodedBarcode,
     color: BarcodeColorSet,
-    showMenu: Boolean,
-    onClick: () -> Unit,
-    onDismissMenu: () -> Unit,
-    onCopy: () -> Unit,
-    onOpenLink: () -> Unit
+    onClick: (Offset) -> Unit
 ) {
-    Box {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-                .clickable { onClick() },
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(2.dp, color.stroke),
-            colors = CardDefaults.cardColors(
-                containerColor = color.cardBackground
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = barcode.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+    var cardWindowPos by remember { mutableStateOf(Offset.Zero) }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = barcode.format,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // 弹出式操作菜单（仅在被选中时显示）
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = onDismissMenu
-        ) {
-            DropdownMenuItem(
-                text = { Text("复制") },
-                onClick = {
-                    onCopy()
-                    onDismissMenu()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .onGloballyPositioned { cardWindowPos = it.positionInWindow() }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onClick(cardWindowPos + offset)
                 }
+            },
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(2.dp, color.stroke),
+        colors = CardDefaults.cardColors(
+            containerColor = color.cardBackground
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = barcode.content,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
-            if (barcode.content.isUrl()) {
-                DropdownMenuItem(
-                    text = { Text("打开") },
-                    onClick = {
-                        onOpenLink()
-                        onDismissMenu()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                    }
-                )
-            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = barcode.format,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
