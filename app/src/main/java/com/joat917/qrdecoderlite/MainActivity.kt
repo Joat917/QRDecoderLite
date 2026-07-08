@@ -24,7 +24,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             QRDecoderLiteTheme {
-                val viewModel: AppViewModel = viewModel()
+                val viewModel: AppViewModel = viewModel(factory = AppViewModel.Factory)
                 val uiState by viewModel.uiState.collectAsState()
                 val decodeUiState by viewModel.decodeUiState.collectAsState()
 
