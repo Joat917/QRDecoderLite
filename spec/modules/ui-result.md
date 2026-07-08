@@ -273,14 +273,10 @@ data class DecodedBarcode(
     val cornerPoints: List<PointF>          // 四个角点 [左上, 右上, 右下, 左下]
 )
 
+列表已按优先级排序：可读文本在前、hex 在后。
+
 /**
  * 结果页的完整状态。
- *
- * 状态机：
- *   barcodes = null, decodeError = null  → 解码中 → 显示"正在识别…"
- *   barcodes 非空列表                      → 解码成功 → 显示多边形标注 + 卡片列表
- *   barcodes 为空列表                      → 无条码  → 显示"未识别到二维码"
- *   decodeError != null                   → 出错    → 显示错误卡片
  */
 data class DecodeUiState(
     val imageUri: Uri,
@@ -288,6 +284,15 @@ data class DecodeUiState(
     val decodeError: String? = null
 )
 ```
+
+状态机：
+
+| barcodes | decodeError | UI 表现 |
+|----------|-------------|---------|
+| null | null | 解码中 → 显示原图 + "正在识别…" |
+| [] | null | 无条码 → 显示原图 + "未识别到二维码" |
+| [...] | null | 成功 → 多边形标注 + 卡片列表（按 scanner 返回顺序渲染） |
+| 任意 | "..." | 出错 → 错误卡片 |
 
 页面通过 `Sheet.Result(uri: Uri)` 触发，ViewModel 内部持有一个 `DecodeUiState`，解码完成后更新 `barcodes` 字段触发 UI 重组。
 
