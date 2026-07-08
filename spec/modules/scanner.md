@@ -32,7 +32,7 @@ sealed interface DecodeResult
 DecodedBarcode
   ├─ content: String           — 解码文本（rawValue 或 rawBytes 的 hex 表示）
   ├─ format: String            — 条码格式名称
-  └─ cornerPoints: List<Point> — 四个角点
+  └─ cornerPoints: List<PointF> — 四个角点
 ```
 
 输出保证：`Success` 列表中的每条 `DecodedBarcode`，其 `content` 和 `cornerPoints` 均非空。无法满足的条目已丢弃。
