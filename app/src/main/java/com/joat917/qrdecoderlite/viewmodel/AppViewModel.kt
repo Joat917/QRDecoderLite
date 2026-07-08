@@ -1,20 +1,28 @@
 package com.joat917.qrdecoderlite.viewmodel
 
+import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.lifecycle.ViewModel
+import androidx.core.net.toUri
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.joat917.qrdecoderlite.model.AppUiState
+import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
+import com.joat917.qrdecoderlite.scanner.Scanner
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import androidx.core.net.toUri
+import kotlinx.coroutines.launch
 
-class AppViewModel : ViewModel() {
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val scanner = Scanner(application)
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -22,19 +30,41 @@ class AppViewModel : ViewModel() {
     private val _decodeUiState = MutableStateFlow<DecodeUiState?>(null)
     val decodeUiState: StateFlow<DecodeUiState?> = _decodeUiState.asStateFlow()
 
+    private var scanningJob: Job? = null
+
     /**
      * 系统图片选择器返回结果。
-     * uri 非 null → 切换到结果页；
+     * uri 非 null → 切换到结果页并启动解码；
      * uri 为 null → 用户取消选择，不做任何事。
      */
     fun onImageSelected(uri: Uri?) {
         if (uri != null) {
+            scanningJob?.cancel()
             _uiState.value = _uiState.value.copy(activeSheet = Sheet.Result(uri))
+            _decodeUiState.value = DecodeUiState(imageUri = uri)
+
+            scanningJob = viewModelScope.launch {
+                when (val result = scanner.scan(uri)) {
+                    is DecodeResult.Success -> {
+                        _decodeUiState.value = DecodeUiState(
+                            imageUri = uri,
+                            barcodes = result.barcodes
+                        )
+                    }
+                    is DecodeResult.Failure -> {
+                        _decodeUiState.value = DecodeUiState(
+                            imageUri = uri,
+                            decodeError = result.reason
+                        )
+                    }
+                }
+            }
         }
     }
 
     /** 关闭结果页，返回主界面 */
     fun onBackToMain() {
+        scanningJob?.cancel()
         _uiState.value = AppUiState()
         _decodeUiState.value = null
     }
@@ -51,5 +81,10 @@ class AppViewModel : ViewModel() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        scanner.close()
     }
 }
