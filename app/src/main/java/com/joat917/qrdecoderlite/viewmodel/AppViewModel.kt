@@ -99,11 +99,11 @@ class AppViewModel(
         }
         try {
             context.startActivity(intent)
-        } catch (e: ActivityNotFoundException) {
+        } catch (_: ActivityNotFoundException) {
             Toast.makeText(context, "没有应用可打开此链接", Toast.LENGTH_SHORT).show()
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             Toast.makeText(context, "没有权限打开此链接", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Toast.makeText(context, "未知的异常导致无法打开此链接", Toast.LENGTH_SHORT).show()
         }
     }
