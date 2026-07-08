@@ -1,14 +1,18 @@
 package com.joat917.qrdecoderlite.viewmodel
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.joat917.qrdecoderlite.model.AppUiState
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import androidx.core.net.toUri
 
 class AppViewModel : ViewModel() {
 
@@ -33,5 +37,19 @@ class AppViewModel : ViewModel() {
     fun onBackToMain() {
         _uiState.value = AppUiState()
         _decodeUiState.value = null
+    }
+
+    /** 复制条码内容到系统剪贴板 */
+    fun onCopy(content: String, context: Context) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("barcode", content))
+    }
+
+    /** 用系统浏览器打开 URL */
+    fun onOpenLink(url: String, context: Context) {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
 }
