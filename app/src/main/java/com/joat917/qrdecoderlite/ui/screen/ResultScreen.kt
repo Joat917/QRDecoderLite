@@ -54,14 +54,14 @@ import com.joat917.qrdecoderlite.model.DecodedBarcode
 
 // ── 调色板 ────────────────────────────────────────────────────────────
 
-private data class BarcodeColorSet(
+internal data class BarcodeColorSet(
     val fill: Color,
     val stroke: Color,
     val cardBackground: Color,
     val cardBar: Color
 )
 
-private val barcodePalette = listOf(
+internal val barcodePalette = listOf(
     BarcodeColorSet(
         fill = Color(0x40673AB7),
         stroke = Color(0xFF673AB7),
@@ -102,7 +102,7 @@ private val barcodePalette = listOf(
 
 // ── 工具函数 ──────────────────────────────────────────────────────────
 
-private fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
+internal fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
     var inside = false
     var j = polygon.size - 1
     for (i in polygon.indices) {
@@ -117,7 +117,7 @@ private fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
     return inside
 }
 
-private fun String.isUrl(): Boolean =
+internal fun String.isUrl(): Boolean =
     startsWith("http://") || startsWith("https://")
 
 // ── 结果页主组件 ──────────────────────────────────────────────────────

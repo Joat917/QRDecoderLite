@@ -76,7 +76,7 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
         return try {
             val rawBarcodes = barcodeScanner.process(image).await()
             val decoded = rawBarcodes.mapNotNull { it.toSortable() }
-            val sorted = decoded.sortedBy { it.priority }.map { it.decoded }
+            val sorted = decoded.sortToDecoded()
             DecodeResult.Success(sorted)
         } catch (e: CancellationException) {
             throw e   // 静默终止，由调用方协程框架处理
@@ -92,26 +92,6 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
     }
 
     // ── Barcode → 中间排序对象 ─────────────────────────────────────────
-
-    private data class SortableBarcode(
-        val decoded: DecodedBarcode,
-        val isRawValue: Boolean,
-        val isOriginalPoints: Boolean
-    ) {
-        /**
-         * 优先级（值越小优先级越高）：
-         * 0 = rawValue + 原始角点
-         * 1 = rawValue + 推算角点
-         * 2 = rawBytes  + 原始角点
-         * 3 = rawBytes  + 推算角点
-         */
-        val priority: Int get() = when {
-            isRawValue && isOriginalPoints -> 0
-            isRawValue && !isOriginalPoints -> 1
-            !isRawValue && isOriginalPoints -> 2
-            else -> 3
-        }
-    }
 
     private fun Barcode.toSortable(): SortableBarcode? {
         // ── 确定 content ──
@@ -185,3 +165,33 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
         }
     }
 }
+
+// ── 测试暴露：排序对象与排序函数 ─────────────────────────────────────
+
+/**
+ * 中间排序对象。由 [MlKitScanner] 内部构建，此处为 internal
+ * 以便单元测试直接构造并验证排序逻辑。
+ */
+internal data class SortableBarcode(
+    val decoded: DecodedBarcode,
+    val isRawValue: Boolean,
+    val isOriginalPoints: Boolean
+) {
+    /**
+     * 优先级（值越小优先级越高）：
+     * 0 = rawValue + 原始角点
+     * 1 = rawValue + 推算角点
+     * 2 = rawBytes  + 原始角点
+     * 3 = rawBytes  + 推算角点
+     */
+    val priority: Int get() = when {
+        isRawValue && isOriginalPoints -> 0
+        isRawValue && !isOriginalPoints -> 1
+        !isRawValue && isOriginalPoints -> 2
+        else -> 3
+    }
+}
+
+/** 按优先级排序后提取最终解码列表。 */
+internal fun List<SortableBarcode>.sortToDecoded(): List<DecodedBarcode> =
+    sortedBy { it.priority }.map { it.decoded }
