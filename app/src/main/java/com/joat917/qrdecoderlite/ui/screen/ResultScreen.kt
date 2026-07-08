@@ -1,6 +1,7 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
+import android.webkit.URLUtil
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -118,7 +119,7 @@ internal fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
 }
 
 internal fun String.isUrl(): Boolean =
-    startsWith("http://") || startsWith("https://")
+    URLUtil.isValidUrl(this)
 
 // ── 结果页主组件 ──────────────────────────────────────────────────────
 

@@ -4,8 +4,10 @@ import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -79,10 +81,19 @@ class AppViewModel(
 
     /** 用系统浏览器打开 URL */
     fun onOpenLink(url: String, context: Context) {
-        val intent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
+        val uri = url.toUri()
+        val intent = Intent(Intent.ACTION_VIEW, uri).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, "没有应用可打开此链接", Toast.LENGTH_SHORT).show()
+        } catch (e: SecurityException) {
+            Toast.makeText(context, "没有权限打开此链接", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "未知的异常导致无法打开此链接", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onCleared() {
