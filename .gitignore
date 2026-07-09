@@ -18,3 +18,4 @@ local.properties
 .kotlin
 .github
 *.jar
+release

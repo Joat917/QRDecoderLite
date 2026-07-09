@@ -12,6 +12,11 @@
 #   public *;
 #}
 
+-keep class com.google.mlkit.vision.barcode.** { public *; }
+-keep class com.google.mlkit.vision.common.** { public *; }
+-keep class com.google.mlkit.common.sdkinternal.** { public *; }
+-keep class com.google.mlkit.common.internal.** { public *; }
+
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
