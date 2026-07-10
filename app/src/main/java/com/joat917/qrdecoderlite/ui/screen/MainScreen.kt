@@ -1,5 +1,6 @@
 package com.joat917.qrdecoderlite.ui.screen
 
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -26,14 +27,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.viewmodel.AppViewModel
+import java.io.File
 
 @Composable
 fun MainScreen(
@@ -50,6 +58,18 @@ fun MainScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         viewModel.onImageSelected(uri)
+    }
+
+    val context = LocalContext.current
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success) {
+            photoUri?.let { viewModel.onImageSelected(it) }
+        }
+        // 拍照取消或失败 → 无操作，留在主界面
     }
 
     Column(
@@ -131,14 +151,17 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // "从相机" — 禁用，预留
-        OutlinedButton(
-            onClick = {},
+        // "从相机" — 启动系统相机拍照
+        Button(
+            onClick = {
+                val uri = createTempImageUri(context)
+                photoUri = uri
+                cameraLauncher.launch(uri)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            enabled = false
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(
                 imageVector = Icons.Filled.CameraAlt,
@@ -175,4 +198,21 @@ fun MainScreen(
             )
         }
     }
+}
+
+/**
+ * 创建系统相机写入照片的临时文件 URI。
+ * 拍摄前清理旧照片，避免累积。
+ */
+private fun createTempImageUri(context: Context): Uri {
+    val cameraDir = File(context.filesDir, "camera")
+    // 清理旧照片
+    cameraDir.listFiles()?.forEach { it.delete() }
+    cameraDir.mkdirs()
+    val tempFile = File(cameraDir, "photo_${System.currentTimeMillis()}.jpg")
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        tempFile
+    )
 }

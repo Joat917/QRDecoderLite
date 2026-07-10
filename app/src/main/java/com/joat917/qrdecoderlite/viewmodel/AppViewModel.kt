@@ -89,6 +89,7 @@ class AppViewModel(
     fun onCopy(content: String, context: Context) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("barcode", content))
+        Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
     }
 
     /** 用系统浏览器打开 URL */

@@ -68,6 +68,13 @@
                   ├─ 成功有条码 → barcodes = [...]
                   ├─ 无条码     → barcodes = emptyList()
                   └─ 出错       → decodeError = "错误信息"
+
+用户点击"从相机"
+  → 创建临时图片文件（FileProvider URI）
+  → 启动系统相机（TakePicture contract）
+  → 用户拍照返回 → URI 回调 → onImageSelected(uri)
+      └─ 后续解码流程与"从相册"相同
+  → 用户取消拍照 → 无操作，留在主界面
 ```
 
 ## 数据模型
