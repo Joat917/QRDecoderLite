@@ -1,7 +1,10 @@
 package com.joat917.qrdecoderlite.ui.screen
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,7 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +45,7 @@ import androidx.core.content.FileProvider
 import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.viewmodel.AppViewModel
 import java.io.File
+import androidx.core.net.toUri
 
 @Composable
 fun MainScreen(
@@ -61,15 +65,36 @@ fun MainScreen(
     }
 
     val context = LocalContext.current
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var photoUriString by rememberSaveable { mutableStateOf<String?>(null) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         if (success) {
-            photoUri?.let { viewModel.onImageSelected(it) }
+            photoUriString?.let { viewModel.onImageSelected(it.toUri()) }
         }
         // 拍照取消或失败 → 无操作，留在主界面
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            val uri = photoUriString?.toUri()
+            if (uri != null) cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCamera() {
+        val uri = createTempImageUri(context)
+        photoUriString = uri.toString()
+        if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            cameraLauncher.launch(uri)
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
     }
 
     Column(
@@ -151,13 +176,9 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // "从相机" — 启动系统相机拍照
+        // "从相机" — 请求权限 → 启动系统相机拍照
         Button(
-            onClick = {
-                val uri = createTempImageUri(context)
-                photoUri = uri
-                cameraLauncher.launch(uri)
-            },
+            onClick = { launchCamera() },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),

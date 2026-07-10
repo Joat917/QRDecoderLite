@@ -84,10 +84,13 @@
 
 ### 点击"从相机"
 
-1. 创建临时图片文件（FileProvider URI）
-2. 启动系统相机（`TakePicture` contract）
-3. 用户拍照返回 → 照片 URI 传给 ViewModel（与"从相册"共用 `onImageSelected`）
-4. 用户取消拍照 → 无操作，留在主界面
+1. 检查 `CAMERA` 权限是否已授予
+   - 未授予 → 请求权限 → 用户拒绝 → 显示 Toast 提示
+   - 已授予 → 继续
+2. 创建临时图片文件（FileProvider URI），清理旧照片
+3. 启动系统相机（`TakePicture` contract）
+4. 用户拍照返回 → 照片 URI 传给 ViewModel（与"从相册"共用 `onImageSelected`）
+5. 用户取消拍照 → 无操作，留在主界面
 
 ### 点击"从历史"
 
