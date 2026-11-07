@@ -55,7 +55,7 @@ class ModelsTest {
 
     @Test
     fun decodeUiState_defaultBarcodesIsNull() {
-        val state = DecodeUiState(imageUri = aUri)
+        val state = DecodeUiState()
         assertNull(state.barcodes)
         assertNull(state.decodeError)
     }
@@ -63,14 +63,14 @@ class ModelsTest {
     @Test
     fun decodeUiState_successState() {
         val barcode = DecodedBarcode("content", "QR_CODE", emptyList())
-        val state = DecodeUiState(imageUri = aUri, barcodes = listOf(barcode))
+        val state = DecodeUiState(barcodes = listOf(barcode))
         assertEquals(1, state.barcodes?.size)
         assertNull(state.decodeError)
     }
 
     @Test
     fun decodeUiState_emptyResultState() {
-        val state = DecodeUiState(imageUri = aUri, barcodes = emptyList())
+        val state = DecodeUiState(barcodes = emptyList())
         assertNotNull(state.barcodes)
         assertEquals(0, state.barcodes?.size)
         assertNull(state.decodeError)
@@ -78,19 +78,19 @@ class ModelsTest {
 
     @Test
     fun decodeUiState_errorState() {
-        val state = DecodeUiState(imageUri = aUri, decodeError = "[Error] 测试错误")
+        val state = DecodeUiState(decodeError = "[Error] 测试错误")
         assertNull(state.barcodes)
         assertNotNull(state.decodeError)
     }
 
     @Test
     fun decodeUiState_copy() {
-        val state1 = DecodeUiState(imageUri = aUri, barcodes = listOf(
-            DecodedBarcode("a", "QR_CODE", emptyList())
-        ))
+        val state1 = DecodeUiState(
+            barcodes = listOf(DecodedBarcode("a", "QR_CODE", emptyList()))
+        )
         val state2 = state1.copy(barcodes = emptyList())
         assertEquals(0, state2.barcodes?.size)
-        assertEquals(state1.imageUri, state2.imageUri)
+        assertNull(state2.decodeError)
     }
 
     // ── DecodedBarcode ─────────────────────────────────────────────────

@@ -41,7 +41,7 @@ object TestUriFactory {
     fun create(): Uri = Mockito.mock(Uri::class.java)
 
     /** 创建测试用 [PointF]，优先直接构造，失败时回退到 Mockito + 反射设值。 */
-    fun pointF(x: Float = 0f, y: Float = 0f): PointF =
+    fun pointF(x: Float, y: Float): PointF =
         try {
             PointF(x, y)
         } catch (_: Exception) {

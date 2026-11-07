@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.scanner.BarcodeScanner
+import kotlinx.coroutines.CompletableDeferred
 
 /**
  * 测试用的 fake 解码器，不依赖 ML Kit。
@@ -18,8 +19,16 @@ class FakeBarcodeScanner : BarcodeScanner {
     /** 记录最近一次 scan 收到的 URI，用于验证调用参数。 */
     var lastScannedUri: Uri? = null
 
+    /** 非 null 时 scan 会挂起在此，直到测试调用 complete；用于观察扫描进行中的状态。 */
+    var gate: CompletableDeferred<Unit>? = null
+
+    /** 非 null 时 scan 抛出该异常，用于验证 ViewModel 的异常兜底。 */
+    var error: Throwable? = null
+
     override suspend fun scan(uri: Uri): DecodeResult {
         lastScannedUri = uri
+        gate?.await()
+        error?.let { throw it }
         return result
     }
 

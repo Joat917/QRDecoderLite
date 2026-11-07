@@ -5,6 +5,7 @@ import com.joat917.qrdecoderlite.MainDispatcherRule
 import com.joat917.qrdecoderlite.TestUriFactory
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -23,7 +24,7 @@ import org.mockito.Mockito
  * - 取消选择（null URI）
  * - 返回主界面
  * - 解码成功 → barcodes 更新
- * - 解码失败 → decodeError 设置
+ * - 解码失败、解码抛异常 → decodeError 设置
  */
 class AppViewModelTest {
 
@@ -54,8 +55,9 @@ class AppViewModelTest {
     }
 
     @Test
-    fun initial_decodeUiState_isNull() {
-        assertNull(viewModel.decodeUiState.value)
+    fun initial_decodeUiState_hasNoBarcodes() {
+        assertNull(viewModel.decodeUiState.value.barcodes)
+        assertNull(viewModel.decodeUiState.value.decodeError)
     }
 
     // ── onImageSelected ────────────────────────────────────────────────
@@ -65,7 +67,7 @@ class AppViewModelTest {
         viewModel.onImageSelected(null)
 
         assertNull(viewModel.uiState.value.activeSheet)
-        assertNull(viewModel.decodeUiState.value)
+        assertNull(viewModel.decodeUiState.value.barcodes)
     }
 
     @Test
@@ -79,15 +81,24 @@ class AppViewModelTest {
     }
 
     @Test
-    fun onImageSelected_validUri_createsDecodeUiState() {
+    fun onImageSelected_validUri_showsDecodingStateUntilScanFinishes() {
         val uri = TestUriFactory.create()
+        val gate = CompletableDeferred<Unit>()
+        fakeScanner.gate = gate
+        fakeScanner.result = DecodeResult.Success(
+            listOf(DecodedBarcode("late", "QR_CODE", emptyList()))
+        )
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value)
-        assertEquals(uri, viewModel.decodeUiState.value?.imageUri)
-        assertNull(viewModel.decodeUiState.value?.barcodes)
-        assertNull(viewModel.decodeUiState.value?.decodeError)
+        // 扫描还没返回 → 结果页停在解码中
+        assertNull(viewModel.decodeUiState.value.barcodes)
+        assertNull(viewModel.decodeUiState.value.decodeError)
+
+        gate.complete(Unit)
+
+        // 扫描返回 → 结果写入
+        assertEquals("late", viewModel.decodeUiState.value.barcodes?.get(0)?.content)
     }
 
     @Test
@@ -115,7 +126,7 @@ class AppViewModelTest {
         viewModel.onBackToMain()
 
         assertNull(viewModel.uiState.value.activeSheet)
-        assertNull(viewModel.decodeUiState.value)
+        assertNull(viewModel.decodeUiState.value.barcodes)
     }
 
     @Test
@@ -125,7 +136,7 @@ class AppViewModelTest {
 
         viewModel.onBackToMain()
         // 扫描 job 被取消，不应再有状态更新
-        assertNull(viewModel.decodeUiState.value?.barcodes)
+        assertNull(viewModel.decodeUiState.value.barcodes)
     }
 
     // ── 解码完成（成功） ────────────────────────────────────────────────
@@ -142,10 +153,10 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value?.barcodes)
-        assertEquals(1, viewModel.decodeUiState.value?.barcodes?.size)
-        assertEquals("https://example.com", viewModel.decodeUiState.value?.barcodes?.get(0)?.content)
-        assertNull(viewModel.decodeUiState.value?.decodeError)
+        assertNotNull(viewModel.decodeUiState.value.barcodes)
+        assertEquals(1, viewModel.decodeUiState.value.barcodes?.size)
+        assertEquals("https://example.com", viewModel.decodeUiState.value.barcodes?.get(0)?.content)
+        assertNull(viewModel.decodeUiState.value.decodeError)
     }
 
     @Test
@@ -155,9 +166,9 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value?.barcodes)
-        assertTrue(viewModel.decodeUiState.value?.barcodes?.isEmpty() ?: false)
-        assertNull(viewModel.decodeUiState.value?.decodeError)
+        assertNotNull(viewModel.decodeUiState.value.barcodes)
+        assertTrue(viewModel.decodeUiState.value.barcodes?.isEmpty() ?: false)
+        assertNull(viewModel.decodeUiState.value.decodeError)
     }
 
     @Test
@@ -171,8 +182,8 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertEquals(2, viewModel.decodeUiState.value?.barcodes?.size)
-        assertEquals("second", viewModel.decodeUiState.value?.barcodes?.get(1)?.content)
+        assertEquals(2, viewModel.decodeUiState.value.barcodes?.size)
+        assertEquals("second", viewModel.decodeUiState.value.barcodes?.get(1)?.content)
     }
 
     // ── 解码失败 ───────────────────────────────────────────────────────
@@ -184,9 +195,9 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value?.decodeError)
-        assertTrue(viewModel.decodeUiState.value?.decodeError?.contains("MlKitException") ?: false)
-        assertNull(viewModel.decodeUiState.value?.barcodes)
+        assertNotNull(viewModel.decodeUiState.value.decodeError)
+        assertTrue(viewModel.decodeUiState.value.decodeError?.contains("MlKitException") ?: false)
+        assertNull(viewModel.decodeUiState.value.barcodes)
     }
 
     @Test
@@ -196,8 +207,8 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value?.decodeError)
-        assertTrue(viewModel.decodeUiState.value?.decodeError?.contains("FileNotFoundException") ?: false)
+        assertNotNull(viewModel.decodeUiState.value.decodeError)
+        assertTrue(viewModel.decodeUiState.value.decodeError?.contains("FileNotFoundException") ?: false)
     }
 
     @Test
@@ -207,8 +218,22 @@ class AppViewModelTest {
 
         viewModel.onImageSelected(uri)
 
-        assertNotNull(viewModel.decodeUiState.value?.decodeError)
-        assertTrue(viewModel.decodeUiState.value?.decodeError?.contains("IOException") ?: false)
+        assertNotNull(viewModel.decodeUiState.value.decodeError)
+        assertTrue(viewModel.decodeUiState.value.decodeError?.contains("IOException") ?: false)
+    }
+
+    @Test
+    fun scanThrows_setsDecodeErrorInsteadOfCrashing() {
+        val uri = TestUriFactory.create()
+        fakeScanner.error = SecurityException("读取被拒绝")
+
+        viewModel.onImageSelected(uri)
+
+        assertNull(viewModel.decodeUiState.value.barcodes)
+        assertNotNull(viewModel.decodeUiState.value.decodeError)
+        assertTrue(
+            viewModel.decodeUiState.value.decodeError?.contains("SecurityException") ?: false
+        )
     }
 
     // ── 连续选图 ───────────────────────────────────────────────────────
@@ -230,8 +255,7 @@ class AppViewModelTest {
         viewModel.onImageSelected(uri2)
 
         // 最终状态的 barcodes 应来自第二次选图
-        assertEquals(uri2, viewModel.decodeUiState.value?.imageUri)
-        assertEquals("second_result", viewModel.decodeUiState.value?.barcodes?.get(0)?.content)
+        assertEquals("second_result", viewModel.decodeUiState.value.barcodes?.get(0)?.content)
     }
 
     @Test
@@ -247,8 +271,8 @@ class AppViewModelTest {
         fakeScanner.result = DecodeResult.Failure("[IOException] 读取错误")
         viewModel.onImageSelected(uri2)
 
-        assertNull(viewModel.decodeUiState.value?.barcodes)
-        assertNotNull(viewModel.decodeUiState.value?.decodeError)
+        assertNull(viewModel.decodeUiState.value.barcodes)
+        assertNotNull(viewModel.decodeUiState.value.decodeError)
     }
 
     // ── 异常流程 ───────────────────────────────────────────────────────
