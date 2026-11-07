@@ -9,6 +9,7 @@ activityCompose = "1.13.0"
 kotlin = "2.4.0"
 composeBom = "2026.05.00"
 mlkitBarcodeScanning = "17.3.0"
+wechatQrCode = "2.6.0"
 coil = "3.5.0"
 coroutinesPlayServices = "1.11.0"
 androidxTestCore = "1.7.0"
@@ -34,6 +35,12 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
+wechat-opencv = { group = "com.github.jenly1314.WeChatQRCode", name = "opencv", version.ref = "wechatQrCode" }
+wechat-opencv-armv7a = { group = "com.github.jenly1314.WeChatQRCode", name = "opencv-armv7a", version.ref = "wechatQrCode" }
+wechat-opencv-armv64 = { group = "com.github.jenly1314.WeChatQRCode", name = "opencv-armv64", version.ref = "wechatQrCode" }
+wechat-opencv-x86 = { group = "com.github.jenly1314.WeChatQRCode", name = "opencv-x86", version.ref = "wechatQrCode" }
+wechat-opencv-x8664 = { group = "com.github.jenly1314.WeChatQRCode", name = "opencv-x86_64", version.ref = "wechatQrCode" }
+wechat-qrcode = { group = "com.github.jenly1314.WeChatQRCode", name = "wechat-qrcode", version.ref = "wechatQrCode" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }

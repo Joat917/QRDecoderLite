@@ -52,11 +52,6 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
     }
 
     override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
-        if (bitmap == null) {
-            return@withContext DecodeResult.Failure(
-                "[IllegalArgumentException] 图片数据为空"
-            )
-        }
         if (bitmap.isRecycled) {
             return@withContext DecodeResult.Failure(
                 "[IllegalStateException] 图片数据已失效，请重新选择"
@@ -94,36 +89,41 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
     // ── Barcode → 中间排序对象 ─────────────────────────────────────────
 
     private fun Barcode.toSortable(): SortableBarcode? {
+        // Barcode 是 Java 对象，属性不能智能转换，先取到本地变量
+        val rawValue = rawValue
+        val rawBytes = rawBytes
+
         // ── 确定 content ──
         val content: String
         val isRawValue: Boolean
         when {
             rawValue != null -> {
-                content = rawValue!!
+                content = rawValue
                 isRawValue = true
             }
             rawBytes != null -> {
-                content = bytesToHex(rawBytes!!)
+                content = bytesToHex(rawBytes)
                 isRawValue = false
             }
             else -> return null   // 二者皆 null → 丢弃
         }
 
         // ── 确定 cornerPoints ──
+        val cornerPoints = cornerPoints
+        val boundingBox = boundingBox
         val points: List<PointF>
         val isOriginalPoints: Boolean
         when {
             cornerPoints != null -> {
-                points = cornerPoints!!.map { PointF(it.x.toFloat(), it.y.toFloat()) }
+                points = cornerPoints.map { PointF(it.x.toFloat(), it.y.toFloat()) }
                 isOriginalPoints = true
             }
             boundingBox != null -> {
-                val rect = boundingBox!!
                 points = listOf(
-                    PointF(rect.left.toFloat(), rect.top.toFloat()),
-                    PointF(rect.right.toFloat(), rect.top.toFloat()),
-                    PointF(rect.right.toFloat(), rect.bottom.toFloat()),
-                    PointF(rect.left.toFloat(), rect.bottom.toFloat())
+                    PointF(boundingBox.left.toFloat(), boundingBox.top.toFloat()),
+                    PointF(boundingBox.right.toFloat(), boundingBox.top.toFloat()),
+                    PointF(boundingBox.right.toFloat(), boundingBox.bottom.toFloat()),
+                    PointF(boundingBox.left.toFloat(), boundingBox.bottom.toFloat())
                 )
                 isOriginalPoints = false
             }

@@ -12,7 +12,6 @@ sealed interface Sheet {
 }
 
 data class DecodeUiState(
-    val imageUri: Uri,
     val barcodes: List<DecodedBarcode>? = null,
     val decodeError: String? = null
 )

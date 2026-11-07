@@ -21,10 +21,19 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
     buildTypes {
         debug {
-//            isMinifyEnabled = false
-            isMinifyEnabled = true
+            isMinifyEnabled = false
+            // isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -63,6 +72,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.wechat.opencv)
+    implementation(libs.wechat.opencv.armv7a)
+    implementation(libs.wechat.opencv.armv64)
+    implementation(libs.wechat.opencv.x86)
+    implementation(libs.wechat.opencv.x8664)
+    implementation(libs.wechat.qrcode)
     implementation(libs.coil.compose)
     implementation(libs.kotlinx.coroutines.play.services)
     testImplementation(libs.junit)

@@ -19,3 +19,6 @@ local.properties
 .github
 *.jar
 release
+
+tmp/
+.venv

@@ -14,7 +14,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
 import com.joat917.qrdecoderlite.ui.screen.MainScreen
 import com.joat917.qrdecoderlite.ui.screen.ResultScreen
@@ -40,8 +39,8 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(innerPadding)
                         )
                         is Sheet.Result -> ResultScreen(
-                            decodeUiState = decodeUiState
-                                ?: DecodeUiState(imageUri = sheet.imageUri),
+                            imageUri = sheet.imageUri,
+                            decodeUiState = decodeUiState,
                             onBackToMain = viewModel::onBackToMain,
                             onCopy = { content ->
                                 viewModel.onCopy(content, applicationContext)
@@ -65,31 +64,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleSendIntent(intent: Intent?) {
-        when (intent?.action) {
-            Intent.ACTION_SEND -> {
-                if (intent.type?.startsWith("image/") == true) {
-                    val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM)
-                    }
-                    if (uri != null) viewModel.onImageSelected(uri)
-                }
-            }
-            Intent.ACTION_SEND_MULTIPLE -> {
-                if (intent.type?.startsWith("image/") == true) {
-                    val uris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableArrayListExtra  (Intent.EXTRA_STREAM)
-                    }
-                    if (!uris.isNullOrEmpty()) {
-                        viewModel.onImageSelected(uris[0])
-                    }
-                }
-            }
+        // 只处理单张图片的分享；多图入口未在本应用注册
+        if (intent?.action != Intent.ACTION_SEND) return
+        if (intent.type?.startsWith("image/") != true) return
+
+        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(Intent.EXTRA_STREAM)
         }
+        if (uri != null) viewModel.onImageSelected(uri)
     }
 }

@@ -19,7 +19,8 @@ import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
 import com.joat917.qrdecoderlite.scanner.BarcodeScanner
-import com.joat917.qrdecoderlite.scanner.MlKitScanner
+import com.joat917.qrdecoderlite.scanner.CombinedScanner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,7 @@ import kotlinx.coroutines.launch
 
 class AppViewModel(
     application: Application,
-    private val scanner: BarcodeScanner = MlKitScanner(application)
+    private val scanner: BarcodeScanner = CombinedScanner(application)
 ) : AndroidViewModel(application) {
 
     companion object {
@@ -43,8 +44,8 @@ class AppViewModel(
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
-    private val _decodeUiState = MutableStateFlow<DecodeUiState?>(null)
-    val decodeUiState: StateFlow<DecodeUiState?> = _decodeUiState.asStateFlow()
+    private val _decodeUiState = MutableStateFlow(DecodeUiState())
+    val decodeUiState: StateFlow<DecodeUiState> = _decodeUiState.asStateFlow()
 
     private var scanningJob: Job? = null
 
@@ -57,21 +58,25 @@ class AppViewModel(
         if (uri != null) {
             scanningJob?.cancel()
             _uiState.value = _uiState.value.copy(activeSheet = Sheet.Result(uri))
-            _decodeUiState.value = DecodeUiState(imageUri = uri)
+            _decodeUiState.value = DecodeUiState()
 
             scanningJob = viewModelScope.launch {
-                when (val result = scanner.scan(uri)) {
+                val result = try {
+                    scanner.scan(uri)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: OutOfMemoryError) {
+                    DecodeResult.Failure("[OutOfMemoryError] 图片过大，内存不足，请换一张更小的图片")
+                } catch (e: Throwable) {
+                    DecodeResult.Failure("[${e::class.simpleName}] ${e.message}")
+                }
+
+                when (result) {
                     is DecodeResult.Success -> {
-                        _decodeUiState.value = DecodeUiState(
-                            imageUri = uri,
-                            barcodes = result.barcodes
-                        )
+                        _decodeUiState.value = DecodeUiState(barcodes = result.barcodes)
                     }
                     is DecodeResult.Failure -> {
-                        _decodeUiState.value = DecodeUiState(
-                            imageUri = uri,
-                            decodeError = result.reason
-                        )
+                        _decodeUiState.value = DecodeUiState(decodeError = result.reason)
                     }
                 }
             }
@@ -82,7 +87,7 @@ class AppViewModel(
     fun onBackToMain() {
         scanningJob?.cancel()
         _uiState.value = AppUiState()
-        _decodeUiState.value = null
+        _decodeUiState.value = DecodeUiState()
     }
 
     /** 复制条码内容到系统剪贴板 */

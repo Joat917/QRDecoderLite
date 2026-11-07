@@ -1,7 +1,6 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
-import android.webkit.URLUtil
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -32,11 +31,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -103,6 +105,11 @@ internal val barcodePalette = listOf(
 // ── 工具函数 ──────────────────────────────────────────────────────────
 
 internal fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
+    if (polygon.size < 3) return false
+    // 射线法在顶点与边上的结果不稳定，先单独判定边界，边界算命中
+    for (i in polygon.indices) {
+        if (isPointOnSegment(point, polygon[i], polygon[(i + 1) % polygon.size])) return true
+    }
     var inside = false
     var j = polygon.size - 1
     for (i in polygon.indices) {
@@ -117,13 +124,26 @@ internal fun isPointInPolygon(point: PointF, polygon: List<PointF>): Boolean {
     return inside
 }
 
+/** 点是否落在线段 a-b 上（含两个端点）。 */
+private fun isPointOnSegment(point: PointF, a: PointF, b: PointF): Boolean {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    val lengthSq = dx * dx + dy * dy
+    if (lengthSq == 0f) return point.x == a.x && point.y == a.y
+    val cross = dx * (point.y - a.y) - dy * (point.x - a.x)
+    if (abs(cross) > 1e-3f) return false
+    val dot = (point.x - a.x) * dx + (point.y - a.y) * dy
+    return dot >= 0f && dot <= lengthSq
+}
+
 internal fun String.isUrl(): Boolean =
-    URLUtil.isNetworkUrl(this)
+    startsWith("http://") || startsWith("https://")
 
 // ── 结果页主组件 ──────────────────────────────────────────────────────
 
 @Composable
 fun ResultScreen(
+    imageUri: android.net.Uri,
     decodeUiState: DecodeUiState,
     onBackToMain: () -> Unit,
     onCopy: (String) -> Unit,
@@ -134,6 +154,10 @@ fun ResultScreen(
     var menuScreenPos by remember { mutableStateOf(Offset.Zero) }
     var anchorPos by remember { mutableStateOf(Offset.Zero) }
     val dismissMenu = { menuIndex = -1 }
+
+    // 结果变化（重新选图、别的 App 分享新图进来）时关掉菜单，
+    // 否则 menuIndex 可能指向新结果里已不存在的条目
+    LaunchedEffect(decodeUiState.barcodes) { dismissMenu() }
 
     Box(
         modifier = modifier
@@ -158,7 +182,7 @@ fun ResultScreen(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 // 图片 + 多边形覆盖层
                 ImageWithOverlay(
-                    imageUri = decodeUiState.imageUri,
+                    imageUri = imageUri,
                     barcodes = decodeUiState.barcodes,
                     onBarcodeClick = { index, pos ->
                         menuIndex = index
@@ -183,8 +207,8 @@ fun ResultScreen(
         }
 
         // 弹出菜单 — 浮在点击的屏幕坐标位置
-        if (menuIndex >= 0 && decodeUiState.barcodes != null) {
-            val barcode = decodeUiState.barcodes[menuIndex]
+        val activeBarcode = decodeUiState.barcodes?.getOrNull(menuIndex)
+        if (activeBarcode != null) {
             Popup(
                 alignment = Alignment.TopStart,
                 offset = IntOffset(
@@ -202,11 +226,11 @@ fun ResultScreen(
                         modifier = Modifier.padding(horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { onCopy(barcode.content); dismissMenu() }) {
+                        IconButton(onClick = { onCopy(activeBarcode.content); dismissMenu() }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "复制")
                         }
-                        if (barcode.content.isUrl()) {
-                            IconButton(onClick = { onOpenLink(barcode.content); dismissMenu() }) {
+                        if (activeBarcode.content.isUrl()) {
+                            IconButton(onClick = { onOpenLink(activeBarcode.content); dismissMenu() }) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "打开")
                             }
                         }
@@ -300,7 +324,8 @@ private fun DecodingIndicator() {
             .padding(vertical = 32.dp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodyMedium,
-        fontSize = 14.sp
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center
     )
 }
 
@@ -313,7 +338,8 @@ private fun NoResultIndicator() {
             .padding(vertical = 32.dp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodyMedium,
-        fontSize = 14.sp
+        fontSize = 14.sp,
+        textAlign = TextAlign.Center
     )
 }
 
