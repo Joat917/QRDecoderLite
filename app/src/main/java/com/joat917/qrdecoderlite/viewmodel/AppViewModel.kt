@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
-import android.util.Log
 import android.widget.Toast
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -22,6 +21,7 @@ import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
 import com.joat917.qrdecoderlite.scanner.BarcodeScanner
 import com.joat917.qrdecoderlite.scanner.CombinedScanner
+import com.joat917.qrdecoderlite.util.AppLog
 import com.joat917.qrdecoderlite.util.toErrorReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-private const val TAG = "AppViewModel"
+private const val COMPONENT = "VM"
 
 class AppViewModel(
     application: Application,
@@ -69,15 +69,15 @@ class AppViewModel(
                 val result = try {
                     scanner.scan(uri)
                 } catch (e: CancellationException) {
-                    Log.d(TAG, "scan cancelled: $uri")
+                    AppLog.d(COMPONENT, "scan cancelled uri=$uri")
                     throw e
                 } catch (e: OutOfMemoryError) {
-                    Log.w(TAG, "scan out of memory: $uri", e)
+                    AppLog.w(COMPONENT, "scan uri=$uri out of memory", e)
                     DecodeResult.Failure(
                         e.toErrorReason(getApplication<Application>().getString(R.string.error_out_of_memory))
                     )
                 } catch (e: Throwable) {
-                    Log.w(TAG, "scan failed: $uri", e)
+                    AppLog.w(COMPONENT, "scan uri=$uri", e)
                     DecodeResult.Failure(e.toErrorReason())
                 }
 

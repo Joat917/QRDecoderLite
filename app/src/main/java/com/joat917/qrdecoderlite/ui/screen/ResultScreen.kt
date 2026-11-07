@@ -1,7 +1,6 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -65,9 +64,8 @@ import coil3.compose.rememberAsyncImagePainter
 import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.AppLog
 import com.joat917.qrdecoderlite.util.toErrorReason
-
-private const val TAG = "ResultScreen"
 
 // ── 调色板 ────────────────────────────────────────────────────────────
 
@@ -268,7 +266,9 @@ private fun ImageWithOverlay(
     val density = LocalDensity.current
 
     LaunchedEffect(loadError, imageUri) {
-        if (loadError != null) Log.w(TAG, "load image failed: $imageUri", loadError)
+        if (loadError != null) {
+            AppLog.w("UI", "load image uri=$imageUri", loadError)
+        }
     }
 
     Box(

@@ -5,10 +5,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.PointF
 import android.net.Uri
-import android.util.Log
 import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.AppLog
 import com.joat917.qrdecoderlite.util.toErrorReason
 import com.king.wechat.qrcode.WeChatQRCodeDetector
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +19,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CancellationException
 
-private const val TAG = "WeChatQrScanner"
+private const val COMPONENT = "WeChat"
 
 /**
  * WeChat QRCode 实现的解码器，仅识别二维码（QR Code）。
@@ -38,11 +38,11 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
             // 具体原因已由 loadBitmap 记入日志，这里只把文字交给用户
             return@withContext DecodeResult.Failure(e.message.orEmpty())
         } catch (e: FileNotFoundException) {
-            return@withContext fail("load $uri", e, R.string.error_file_not_found)
+            return@withContext fail("load uri=$uri", e, R.string.error_file_not_found)
         } catch (e: IOException) {
-            return@withContext fail("load $uri", e, R.string.error_io_read)
+            return@withContext fail("load uri=$uri", e, R.string.error_io_read)
         } catch (e: Exception) {
-            return@withContext fail("load $uri", e, null)
+            return@withContext fail("load uri=$uri", e, null)
         }
         try {
             decode(bitmap)
@@ -54,7 +54,7 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
 
     override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
         if (bitmap.isRecycled) {
-            Log.w(TAG, "scan rejected: bitmap is recycled")
+            AppLog.w(COMPONENT, "scan rejected: bitmap recycled")
             return@withContext DecodeResult.Failure(
                 "[IllegalStateException] ${context.getString(R.string.error_image_recycled)}"
             )
@@ -75,7 +75,7 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
      * 才用 [fallbackRes] 的文字，避免用套话盖掉真实原因。
      */
     private fun fail(stage: String, e: Throwable, fallbackRes: Int?): DecodeResult.Failure {
-        Log.w(TAG, stage, e)
+        AppLog.w(COMPONENT, stage, e)
         val fallback = fallbackRes?.let { context.getString(it) }
         return DecodeResult.Failure(e.toErrorReason(fallback))
     }
@@ -89,20 +89,20 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
         }
         return try {
             val result = WeChatQRCodeDetector.detectAndDecodeResult(bitmap)
-            val decoded = mapToDecoded(result.texts, result.getVertexPoints())
-            if (decoded.size < result.texts.size) {
-                Log.d(
-                    TAG,
-                    "dropped ${result.texts.size - decoded.size} of ${result.texts.size} codes " +
-                        "with incomplete vertex points"
-                )
-            }
+            val vertices = result.getVertexPoints()
+            val decoded = mapToDecoded(result.texts, vertices)
+            AppLog.d(
+                COMPONENT,
+                "detect image=${bitmap.width}x${bitmap.height} " +
+                    "texts=${result.texts.size} vertices=${vertices.size} " +
+                    "withPoints=${decoded.count { it.cornerPoints.isNotEmpty() }}"
+            )
             DecodeResult.Success(decoded)
         } catch (e: CancellationException) {
-            Log.d(TAG, "scan cancelled")
+            AppLog.d(COMPONENT, "detect cancelled")
             throw e
         } catch (e: Exception) {
-            fail("detect and decode", e, null)
+            fail("detect image=${bitmap.width}x${bitmap.height}", e, null)
         }
     }
 
@@ -115,7 +115,7 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
     private fun loadBitmap(uri: Uri): Bitmap {
         val stream = context.contentResolver.openInputStream(uri)
         if (stream == null) {
-            Log.w(TAG, "openInputStream returned null: $uri")
+            AppLog.w(COMPONENT, "load uri=$uri stream=null")
             throw ImageLoadException(context.getString(R.string.error_image_unreadable))
         }
         val bytes = stream.use { it.readBytes() }
@@ -123,10 +123,9 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            Log.w(
-                TAG,
-                "cannot read bounds: $uri (${bytes.size} bytes, " +
-                    "${bounds.outWidth}x${bounds.outHeight})"
+            AppLog.w(
+                COMPONENT,
+                "load uri=$uri bytes=${bytes.size} bounds=${bounds.outWidth}x${bounds.outHeight}"
             )
             throw ImageLoadException(context.getString(R.string.error_image_undecodable))
         }
@@ -136,7 +135,11 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
             ?: run {
-                Log.w(TAG, "decode returned null: $uri (${bytes.size} bytes)")
+                AppLog.w(
+                    COMPONENT,
+                    "load uri=$uri bytes=${bytes.size} " +
+                        "bounds=${bounds.outWidth}x${bounds.outHeight} decode=null"
+                )
                 throw ImageLoadException(context.getString(R.string.error_image_undecodable))
             }
     }
@@ -155,19 +158,24 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
     /**
      * 将库返回的文本与顶点映射为 [DecodedBarcode]。
      *
-     * 每个二维码对应 4 个连续顶点；顶点不足的条目丢弃（保证输出字段非空）。
+     * 不丢弃任何识别结果：文本一律保留，角点只在布局能确认时附带。
+     * 库返回的顶点是扁平列表，只有 `vertices.size == texts.size * 4` 才能确定
+     * 「每码 4 个连续顶点」；其它情况说明位置信息不可用或布局未知，此时角点留空，
+     * 交由合并层与渲染层处理（渲染层对空角点不画多边形，但照常显示文本）。
      */
     private fun mapToDecoded(
         texts: List<String>,
         vertices: List<Point>
-    ): List<DecodedBarcode> = texts.mapIndexedNotNull { index, text ->
-        val start = index * 4
-        val end = start + 4
-        if (end > vertices.size) {
-            null
-        } else {
-            val points = (start until end).map {
-                PointF(vertices[it].x.toFloat(), vertices[it].y.toFloat())
+    ): List<DecodedBarcode> {
+        val layoutKnown = texts.isNotEmpty() && vertices.size == texts.size * POINTS_PER_CODE
+        return texts.mapIndexed { index, text ->
+            val points = if (layoutKnown) {
+                (0 until POINTS_PER_CODE).map { offset ->
+                    val point = vertices[index * POINTS_PER_CODE + offset]
+                    PointF(point.x.toFloat(), point.y.toFloat())
+                }
+            } else {
+                emptyList()
             }
             DecodedBarcode(content = text, format = "QR_CODE", cornerPoints = points)
         }
@@ -176,6 +184,9 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
     companion object {
         /** 送进引擎的图片长边上限，单位像素。 */
         private const val MAX_DECODE_SIDE = 2000
+
+        /** 每个二维码对应的顶点数，用于校验库返回的扁平顶点列表布局。 */
+        private const val POINTS_PER_CODE = 4
 
         /** 只在 [ensureInitialized] 的同步块内读写，不需要 @Volatile。 */
         private var initialized = false

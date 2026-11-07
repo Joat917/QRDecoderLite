@@ -4,13 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.net.Uri
-import android.util.Log
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.AppLog
 import com.joat917.qrdecoderlite.util.toErrorReason
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -19,7 +19,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CancellationException
 
-private const val TAG = "MlKitScanner"
+private const val COMPONENT = "MlKit"
 
 /**
  * ML Kit 实现的解码器。
@@ -37,20 +37,20 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
         val image = try {
             InputImage.fromFilePath(context, uri)
         } catch (e: FileNotFoundException) {
-            return@withContext fail("open $uri", e, R.string.error_file_not_found)
+            return@withContext fail("open uri=$uri", e, R.string.error_file_not_found)
         } catch (e: IOException) {
-            return@withContext fail("open $uri", e, R.string.error_io_read)
+            return@withContext fail("open uri=$uri", e, R.string.error_io_read)
         } catch (e: IllegalArgumentException) {
-            return@withContext fail("open $uri", e, R.string.error_unsupported_image)
+            return@withContext fail("open uri=$uri", e, R.string.error_unsupported_image)
         } catch (e: Exception) {
-            return@withContext fail("open $uri", e, null)
+            return@withContext fail("open uri=$uri", e, null)
         }
         processImage(image)
     }
 
     override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
         if (bitmap.isRecycled) {
-            Log.w(TAG, "scan rejected: bitmap is recycled")
+            AppLog.w(COMPONENT, "scan rejected: bitmap recycled")
             return@withContext DecodeResult.Failure(
                 "[IllegalStateException] ${context.getString(R.string.error_image_recycled)}"
             )
@@ -72,7 +72,7 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
      * 才用 [fallbackRes] 的文字，避免用套话盖掉真实原因。
      */
     private fun fail(stage: String, e: Throwable, fallbackRes: Int?): DecodeResult.Failure {
-        Log.w(TAG, stage, e)
+        AppLog.w(COMPONENT, stage, e)
         val fallback = fallbackRes?.let { context.getString(it) }
         return DecodeResult.Failure(e.toErrorReason(fallback))
     }
@@ -81,22 +81,21 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
         return try {
             val rawBarcodes = barcodeScanner.process(image).await()
             val decoded = rawBarcodes.mapNotNull { it.toSortable() }
-            if (decoded.size < rawBarcodes.size) {
-                Log.d(
-                    TAG,
-                    "dropped ${rawBarcodes.size - decoded.size} of ${rawBarcodes.size} barcodes " +
-                        "without content or corner points"
-                )
-            }
+            AppLog.d(
+                COMPONENT,
+                "process image=${image.width}x${image.height} " +
+                    "barcodes=${rawBarcodes.size} noContent=${rawBarcodes.size - decoded.size} " +
+                    "noPoints=${decoded.count { it.decoded.cornerPoints.isEmpty() }}"
+            )
             val sorted = decoded.sortToDecoded()
             DecodeResult.Success(sorted)
         } catch (e: CancellationException) {
-            Log.d(TAG, "scan cancelled")
+            AppLog.d(COMPONENT, "process cancelled")
             throw e   // 静默终止，由调用方协程框架处理
         } catch (e: com.google.mlkit.common.MlKitException) {
-            fail("process image", e, R.string.error_barcode_failed)
+            fail("process image=${image.width}x${image.height}", e, R.string.error_barcode_failed)
         } catch (e: Exception) {
-            fail("process image", e, null)
+            fail("process image=${image.width}x${image.height}", e, null)
         }
     }
 
@@ -141,7 +140,11 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
                 )
                 isOriginalPoints = false
             }
-            else -> return null   // 二者皆 null → 丢弃
+            else -> {
+                // 位置信息缺失时保留内容，角点留空，由渲染层决定不画多边形
+                points = emptyList()
+                isOriginalPoints = false
+            }
         }
 
         return SortableBarcode(
