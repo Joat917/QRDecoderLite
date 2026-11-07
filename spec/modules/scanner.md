@@ -1,28 +1,14 @@
-# 解码模块 — scanner
+# 解码模块
 
-## 所属层
-
-Data
+本文说明解码模块的设计，界面与流程不在范围内。
 
 ## 职责
 
-接收图片来源，调用 ML Kit 条码识别库执行解码。对原始结果做空值处理和排序后返回，**输出数据中的字段均为非空**。
+接收图片，用两个识别引擎解码，把结果合并成一份列表交给 `AppViewModel`。
 
-## 架构
+两个引擎能力不同：ML Kit 识别全部条码格式，WeChatQRCode 只识别二维码，但对难认的二维码识别率更高。两边的结果合并后按文本去重。
 
-采用**接口 + 实现分离**，便于 ViewModel 单元测试：
-
-```
-BarcodeScanner (接口)           ← 定义解码契约
-    ↑
-MlKitScanner (ML Kit 实现)      ← 生产环境使用
-    ↑
-Mock/FakeScanner (测试实现)     ← 单元测试注入
-```
-
-生产环境通过 ViewModel 构造器默认参数注入，测试时传入 fake 实现。
-
-## 接口定义
+## 接口
 
 ```kotlin
 interface BarcodeScanner {
@@ -32,158 +18,73 @@ interface BarcodeScanner {
 }
 ```
 
-ViewModel 构造器接收 `BarcodeScanner` 并设默认值：
+生产实现是 `CombinedScanner`，由 `AppViewModel` 的构造参数默认注入。测试注入替代实现，不加载 ML Kit 与 OpenCV。
 
-```kotlin
-class AppViewModel(
-    application: Application,
-    private val scanner: BarcodeScanner = MlKitScanner(application)
-) : AndroidViewModel(application)
-```
+`scan(bitmap)` 传入的 Bitmap 归调用方所有，模块不回收。`scan(uri)` 由模块自己解码，用完立即回收。
 
-## 输入
+## 实现
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| uri | android.net.Uri | 系统图片选择器返回的 URI，由 `InputImage.fromFilePath` 内部处理文件读取和 EXIF 校正 |
-| bitmap | android.graphics.Bitmap | 已加载的 Bitmap（为未来相机帧预留） |
+`MlKitScanner` 封装 ML Kit 的条码识别。每条原始结果先确定文本，再确定位置点。
 
-## 输出
+确定文本的顺序是：有 `rawValue` 用 `rawValue`；没有则用 `rawBytes` 转成十六进制字符串；两者都没有就丢掉这条结果，因为没有内容的结果没有意义。
 
-```
-sealed interface DecodeResult
-  ── Success(val barcodes: List<DecodedBarcode>)
-  ── Failure(val reason: String)
+确定位置点的顺序是：有 `cornerPoints` 直接用；没有则用 `boundingBox` 的四个角推算；两者都没有则保留文本，位置点留空。
 
-DecodedBarcode
-  ├─ content: String           — 解码文本（rawValue 或 rawBytes 的 hex 表示）
-  ├─ format: String            — 条码格式名称
-  └─ cornerPoints: List<PointF> — 四个角点
-```
+结果的排序按四个优先级：可读文本且有位置点、可读文本且位置点由外框推算、十六进制文本且有位置点、十六进制文本且位置点由外框推算。同一优先级内保持 ML Kit 返回的顺序。没有位置点的结果排在最后。
 
-输出保证：`Success` 列表中的每条 `DecodedBarcode`，其 `content` 和 `cornerPoints` 均非空。无法满足的条目已丢弃。
+`WeChatQrScanner` 封装 WeChatQRCode。引擎在首次识别时才初始化，初始化包括加载 OpenCV 与检测器；初始化失败会转成解码失败，不会抛到上层。
 
-## 处理流程
+读图时只打开文件一次，把内容读进内存后解码两次，一次读尺寸、一次按缩小后的尺寸解码。长边超过 2000 像素时先缩小再解码，缩小的比例取 2 的幂。设这个上限是为了控制内存：一张 4000×3000 的照片按原尺寸要占 48 MB，识别过程还要再翻一倍。
 
-### 原始 Barcode 到 DecodedBarcode 的映射
+库把位置点放在一个列表里，按码的顺序排列。只有位置点个数等于识别结果数乘 4 时，才能确定每个码的四个角，此时按顺序挂到对应结果上；其它情况说明位置不可用或排列方式未知，所有结果的位置点都留空。
 
-对 ML Kit 返回的每个 Barcode 依次做：
+`WeChatQrScanner` 的格式名固定为 `QR_CODE`。
 
-1. **确定 content**
-   - `rawValue` 非 null → 直接使用
-   - `rawValue` 为 null 但 `rawBytes` 非空 → 转为 hex 格式（`"41 42 43 …"` 每字节两位十六进制、空格分隔）
-   - 二者皆 null → 丢弃该条目
+`CombinedScanner` 接收两个引擎，并行执行，再把两份结果合并。合并规则放在下一节。
 
-2. **确定 cornerPoints**
-   - `cornerPoints` 非 null → 直接使用
-   - `cornerPoints` 为 null 但 `boundingBox` 非 null → 由 boundingBox 四角推算
-   - 二者皆 null → 丢弃该条目
+## 合并规则
 
-### 排序规则
+| ML Kit 结果 | WeChat 结果 | 合并结果 |
+|---|---|---|
+| 失败 | 成功 | 用 WeChat 的结果 |
+| 成功 | 失败 | 用 ML Kit 的结果 |
+| 成功 | 成功 | 两份结果按文本去重后合并，ML Kit 的结果在前 |
+| 失败 | 失败 | 失败，两条原因换行拼接 |
 
-最终列表按以下优先级排列：
+单个引擎失败不会让整体失败。失败信息只记录在日志里，不影响另一侧已经识别出的内容。
 
-```
-① rawValue 来源 + cornerPoints 非 null  （可读文本、有坐标）
-② rawValue 来源 + cornerPoints 推算     （可读文本、坐标由 boundingBox 推算）
-③ rawBytes 来源 + cornerPoints 非 null  （hex 文本、有坐标）
-④ rawBytes 来源 + cornerPoints 推算     （hex 文本、坐标由 boundingBox 推算）
-```
+两份结果内容相同时保留 ML Kit 的结果，位置点与格式名也取 ML Kit 的。
 
-同一优先级内保持 ML Kit 返回的原始顺序。
+空列表算成功，表示这一侧没有识别到码。一侧成功为空、另一侧失败时，结果是成功且为空。
 
-## 特性
+## 输出保证
 
-- 检测全部条码格式，不限制
-- 多码检测，单次返回所有识别到的条码
-- URI 入口不干预图片加载，完全交由 ML Kit 处理
-- 结果已排序：可读内容在前、hex 在后
-- suspend 接口，调用方以协程方式调用
+`content` 一定非空。拿不到文本的结果直接丢掉。
+
+`cornerPoints` 可以为空。引擎不因为缺位置就丢掉文本，是否画多边形由结果页决定。
 
 ## 生命周期
 
-`MlKitScanner` 实例作为 `AppViewModel` 的属性创建，ViewModel 初始化时创建，`onCleared()` 时调用 `close()` 释放。ViewModel 通过 `BarcodeScanner` 接口持有实例，不依赖具体实现。
+`CombinedScanner` 由 `AppViewModel` 创建，在 `onCleared` 时调用 `close` 释放 ML Kit 客户端。OpenCV 的初始化发生在首次识别，生命周期覆盖整个进程，`close` 不回收。
 
-## 边界
+## 错误处理
 
-| 场景 | 行为 |
-|------|------|
-| 成功但无条码 | Success(emptyList()) |
-| 扫描过程被取消 | 静默终止，不返回 |
-| rawValue 和 rawBytes 皆 null | 丢弃该条目 |
-| cornerPoints 和 boundingBox 皆 null | 丢弃该条目 |
+所有失败转成 `DecodeResult.Failure`，原因文字按 `spec/error-handling.md` 的规则构造。模块内部不做重试。
 
-## 异常与错误映射
+## 已知限制
 
-`scan(uri)` 和 `scan(bitmap)` 内部在两个明确的异常边界处 try-catch，将异常映射为 `Failure(reason)`。reason 值的格式约定：
+微信引擎直接解码 Bitmap，不读 EXIF 方向，旋转过的照片可能识别不到。ML Kit 经由 `InputImage` 读取文件，会校正方向。
 
-```
-[异常类名] 用户友好的错误描述
-```
+微信引擎对整张图直接解码时可能只得到文本、没有位置点，这类结果的位置点为空。
 
-### 异常边界一：InputImage.fromFilePath
-
-```kotlin
-InputImage.fromFilePath(context, uri)
-```
-
-可能抛出的异常：
-
-| 条件 | reason |
-|------|--------|
-| `FileNotFoundException` | `[FileNotFoundException] 未找到图片文件，文件可能已被移动或删除` |
-| `IOException`（非 FileNotFound） | `[IOException] 无法读取图片，请检查文件权限` |
-| `IllegalArgumentException`（如无效 URI scheme） | `[IllegalArgumentException] 不支持的图片格式或无效的文件路径` |
-| 其他非预期 `Exception` | `[${e::class.simpleName}] ${e.message}`（忠实返回类名和详细信息） |
-
-### 异常边界二：barcodeScanner.process
-
-```kotlin
-barcodeScanner.process(image)
-```
-
-可能抛出的异常：
-
-| 条件 | reason |
-|------|--------|
-| `MlKitException` | `[MlKitException] 二维码识别失败，请重试` |
-| `CancellationException` | 静默忽略，不返回 Failure（协程被取消时不消费异常） |
-| 其他非预期 `Exception` | `[${e::class.simpleName}] ${e.message}`（忠实返回类名和详细信息） |
-
-### 前置检查（scan(bitmap) 入口）
-
-| 条件 | reason |
-|------|--------|
-| bitmap 参数为 null | `[IllegalArgumentException] 图片数据为空` |
-| bitmap.isRecycled 为 true | `[IllegalStateException] 图片数据已失效，请重新选择` |
-
-### 处理流程说明
-
-```
-scan(uri) / scan(bitmap)
-  │
-  ├─ 前置检查 ────────────────── 失败 → Failure(reason)
-  │
-  ├─ try ①: InputImage.fromFilePath ── 异常 → Failure(reason)
-  │
-  ├─ try ②: barcodeScanner.process ─── 异常 → Failure(reason)
-  │                                       CancellationException → 静默忽略
-  │
-  └─ 空值过滤 + 排序 ─────────── 纯逻辑，不抛异常
-       │
-       ├─ 结果列表为空 → Success(emptyList())
-       └─ 结果列表非空 → Success(sortedBarcodes)
-```
-
-"未识别到二维码"（Success 空列表）与"识别失败"（Failure）在语义上有明确区分——前者图片能正常读取但没有条码，后者是读取或识别过程中出现了异常。
+混淆会破坏 OpenCV 的 JNI 调用，`app/proguard-rules.pro` 为 OpenCV 的字段名保留原名，理由见 `spec/decisions.md`。
 
 ## 依赖
 
-- `com.google.mlkit:barcode-scanning`（仅 MlKitScanner 依赖）
-- `BarcodeScanner` 接口本身无外部依赖
+- `com.google.mlkit:barcode-scanning`
+- `com.github.jenly1314.WeChatQRCode:opencv` 与 `opencv-*`，含各架构的原生库文件
+- `com.github.jenly1314.WeChatQRCode:wechat-qrcode`
 
 ## 消费方
 
-`AppViewModel` 通过 `BarcodeScanner` 接口调用解码，`DecodeResult` 映射为 `DecodeUiState(barcodes, decodeError)`，由 ui-result 模块处理。消费方拿到的 `cornerPoints` 均为非空，可直接用于绘制。
-
-测试时 ViewModel 可注入 fake `BarcodeScanner` 实现，无需 ML Kit 依赖。
+`AppViewModel` 通过接口调用。拿到的 `DecodeResult` 被映射为 `DecodeUiState`，由结果页展示。

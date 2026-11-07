@@ -1,77 +1,49 @@
-# CLAUDE.md
+# 协作约定
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+给协作者与自动工具的说明。项目事实见 `README.md` 与 `spec/`，这里只写怎么做。
 
-## 项目概览
+## 命令
 
-QRDecoderLite — 轻量级 Android 二维码解码应用。使用 Jetpack Compose + Material3 构建，单模块项目。
-
-- **包名**: `com.joat917.qrdecoderlite`
-- **compileSdk / targetSdk**: 36 (Android 15)
-- **minSdk**: 24 (Android 7.0)
-- **语言**: Kotlin
-- **构建系统**: Gradle 9.4.1 + AGP 9.2.1 + Kotlin 2.4.0
-- **依赖管理**: Gradle Version Catalog (`gradle/libs.versions.toml`)
-
-## 构建与运行命令
-
-```bash
-# 构建 debug APK
-./gradlew assembleDebug
-
-# 安装到连接的设备/模拟器
-./gradlew installDebug
-
-# 运行所有单元测试
-./gradlew test
-
-# 运行所有插桩测试 (需连接设备/模拟器)
-./gradlew connectedAndroidTest
-
-# 检查依赖更新
-./gradlew libsUpdateCheck
-
-# Lint 检查
-./gradlew lint
+```
+./gradlew assembleDebug          构建调试包
+./gradlew installDebug           安装到已连接设备
+./gradlew test                   单元测试
+./gradlew connectedAndroidTest   设备测试
+./gradlew lint                   静态检查
 ```
 
-## 项目架构
+## 写代码时的约定
 
-### 模块结构
+依赖版本统一由 `gradle/libs.versions.toml` 管理，构建文件通过 `libs.*` 引用，不写死版本号。
 
-单模块 (`:app`)，详细目录结构见 [spec/project-structure.md](spec/project-structure.md)。
+界面文字全部放 `res/values/strings.xml`，组合期用 `stringResource` 解析，回调里只用已解析的变量。
 
-### 架构要点
+日志与用户可见的错误文字按 `spec/error-handling.md` 处理，捕获异常时必须带上异常对象。
 
-- **UI 层**: Jetpack Compose + Material3
-- **主题**: Android 12+ 支持 Dynamic Color，回退到紫色系静态调色板
-- **Activity**: 单 Activity 架构（`ComponentActivity`），Edge-to-Edge 显示
+单 Activity 结构，页面切换靠 `AppUiState.activeSheet`，不引入导航库。
 
-### 依赖体系 (Version Catalog)
+模块之间通过接口通信。解码模块只暴露 `BarcodeScanner`，流程层不依赖具体引擎。
 
-| 类别 | 依赖 |
-|------|------|
-| Compose | compose-bom 2026.05.00, Material3, UI, UI Graphics |
-| Activity | activity-compose 1.13.0 |
-| Lifecycle | lifecycle-runtime-ktx 2.10.0 |
-| Core | core-ktx 1.18.0 |
-| ML Kit | barcode-scanning 17.3.0 |
-| 图片加载 | Coil 3.5.0 (coil-compose) |
-| 协程 | coroutines-play-services 1.11.0 |
-| 测试 | JUnit 4.13.2, Espresso 3.7.0, Compose UI Test |
+抽象只在被多处使用或明显冗长时引入。
 
-### 设计约定
+## 写文档时的约定
 
-- 遵循 Android 官方推荐的单 Activity + Compose 导航模式
-- 使用版本目录统一管理依赖，禁止直接硬编码版本号
-- Gradle 使用 Kotlin DSL，模块级 `build.gradle.kts` 通过 `libs.*` 引用目录
-- 主题支持亮/暗模式切换
+`spec/` 放设计与约定，不写代码实现细节。
 
-## 工作流程约定
+数据模型与接口定义只在 `spec/architecture.md` 出现一次，其它文档引用而不复制。
 
-- **架构先行**: 在完全确认项目路线（架构设计、模块划分、接口定义）之前，不要开始编写实现代码。
-- **需求与设计文档**: 项目规格、架构设计、接口定义等写入 `spec/` 目录下的文档。实现进展（测试结果）和项目要求（架构、设计）尽量写在不同的文件中。
-- **规划文件只包含高层信息**: 架构、设计和接口定义等，不包含代码实现细节。
-- **环境搭建由用户完成**: 环境配置（如安装 SDK、配置 Gradle）、代码构建和运行由用户手动执行，AI 不代为执行。
-- **模块化原则**: 一个模块只处理一类数据或只和一个外部系统交互。模块之间通过明确的接口通信，避免全局状态和单例。
-- **适度抽象**: 只有多次使用的或者较为冗长的代码块才需要封装成函数/类。过度抽象会增加理解和维护成本。
+决策写进 `spec/decisions.md`，每条包含决定、理由、代价。
+
+已完成任务的计划移到 `spec/history/`，并在开头标注状态。
+
+文字风格：短句、少修饰、不用加粗和括号堆叠、不写没有信息量的套话。一份文档开头用一句话说明它管什么。
+
+避开译文腔：动作直接用动词，不写成「对…进行…」；少用「由…决定」「由…记录」这类被动句；不硬译术语，API 名字保留原文；「的」字连用三次以上的长定语要拆句。
+
+## 工作方式
+
+动手前先确认路线。架构、模块划分、接口定义没有定下来之前，不写实现。
+
+环境配置、构建、运行由项目所有者执行，自动工具不代为执行。
+
+实现进展与验证结果记录在 `spec/testing/manual-checklist.md` 每轮追加的小节里，不混入设计文档。
