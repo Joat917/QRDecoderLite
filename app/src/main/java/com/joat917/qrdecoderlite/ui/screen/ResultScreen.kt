@@ -1,6 +1,7 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -164,6 +165,12 @@ fun ResultScreen(
     // 结果变化（重新选图、别的 App 分享新图进来）时关掉菜单，
     // 否则 menuIndex 可能指向新结果里已不存在的条目
     LaunchedEffect(decodeUiState.barcodes) { dismissMenu() }
+
+    // 返回键 / 返回手势：先关操作栏，没有操作栏才回主界面。
+    // 结果页自己不处理的话，按下会直接退出应用（单 Activity，栈里没有上一页）
+    BackHandler {
+        if (menuIndex >= 0) dismissMenu() else onBackToMain()
+    }
 
     Box(
         modifier = modifier
