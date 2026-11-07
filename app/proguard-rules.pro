@@ -1,26 +1,14 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
-
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
 -keep class com.google.mlkit.vision.barcode.** { public *; }
 -keep class com.google.mlkit.vision.common.** { public *; }
 -keep class com.google.mlkit.common.sdkinternal.** { public *; }
 -keep class com.google.mlkit.common.internal.** { public *; }
+-keepclassmembers class org.opencv.** {
+    <fields>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+#-keepnames class org.opencv.** { *; }
+#-keep class org.opencv.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ── 混淆警告 ──
+# 来自 build/outputs/mapping/<variant>/missing_rules.txt
+-dontwarn javax.lang.model.element.Modifier

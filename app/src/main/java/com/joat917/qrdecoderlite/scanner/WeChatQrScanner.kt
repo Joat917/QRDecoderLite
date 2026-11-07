@@ -5,8 +5,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.PointF
 import android.net.Uri
+import android.util.Log
+import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.toErrorReason
 import com.king.wechat.qrcode.WeChatQRCodeDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,6 +18,8 @@ import org.opencv.core.Point
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CancellationException
+
+private const val TAG = "WeChatQrScanner"
 
 /**
  * WeChat QRCode 实现的解码器，仅识别二维码（QR Code）。
@@ -29,23 +34,15 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
     override suspend fun scan(uri: Uri): DecodeResult = withContext(Dispatchers.IO) {
         val bitmap = try {
             loadBitmap(uri)
+        } catch (e: ImageLoadException) {
+            // 具体原因已由 loadBitmap 记入日志，这里只把文字交给用户
+            return@withContext DecodeResult.Failure(e.message.orEmpty())
         } catch (e: FileNotFoundException) {
-            return@withContext DecodeResult.Failure(
-                "[FileNotFoundException] 未找到图片文件，文件可能已被移动或删除"
-            )
+            return@withContext fail("load $uri", e, R.string.error_file_not_found)
         } catch (e: IOException) {
-            return@withContext DecodeResult.Failure(
-                "[IOException] 无法读取图片，请检查文件权限"
-            )
+            return@withContext fail("load $uri", e, R.string.error_io_read)
         } catch (e: Exception) {
-            return@withContext DecodeResult.Failure(
-                "[${e::class.simpleName}] ${e.message}"
-            )
-        }
-        if (bitmap == null) {
-            return@withContext DecodeResult.Failure(
-                "[IllegalArgumentException] 图片数据为空"
-            )
+            return@withContext fail("load $uri", e, null)
         }
         try {
             decode(bitmap)
@@ -57,8 +54,9 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
 
     override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
         if (bitmap.isRecycled) {
+            Log.w(TAG, "scan rejected: bitmap is recycled")
             return@withContext DecodeResult.Failure(
-                "[IllegalStateException] 图片数据已失效，请重新选择"
+                "[IllegalStateException] ${context.getString(R.string.error_image_recycled)}"
             )
         }
         decode(bitmap)   // Bitmap 由调用方持有，不在此释放
@@ -70,47 +68,77 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
 
     // ── 内部处理 ────────────────────────────────────────────────────────
 
+    /**
+     * 记录异常并转成用户可见的失败原因。
+     *
+     * 日志带完整异常对象，用户看到的是异常自带的 message；只有 message 为空时
+     * 才用 [fallbackRes] 的文字，避免用套话盖掉真实原因。
+     */
+    private fun fail(stage: String, e: Throwable, fallbackRes: Int?): DecodeResult.Failure {
+        Log.w(TAG, stage, e)
+        val fallback = fallbackRes?.let { context.getString(it) }
+        return DecodeResult.Failure(e.toErrorReason(fallback))
+    }
+
     /** 执行识别。Bitmap 的释放责任在调用方。 */
     private fun decode(bitmap: Bitmap): DecodeResult {
         try {
             ensureInitialized(context)
         } catch (e: Exception) {
-            return DecodeResult.Failure(
-                "[WeChatQRCodeInitException] 二维码引擎初始化失败，请重试"
-            )
+            return fail("init OpenCV / WeChatQRCodeDetector", e, R.string.error_engine_init_failed)
         }
         return try {
             val result = WeChatQRCodeDetector.detectAndDecodeResult(bitmap)
-            DecodeResult.Success(mapToDecoded(result.texts, result.getVertexPoints()))
+            val decoded = mapToDecoded(result.texts, result.getVertexPoints())
+            if (decoded.size < result.texts.size) {
+                Log.d(
+                    TAG,
+                    "dropped ${result.texts.size - decoded.size} of ${result.texts.size} codes " +
+                        "with incomplete vertex points"
+                )
+            }
+            DecodeResult.Success(decoded)
         } catch (e: CancellationException) {
+            Log.d(TAG, "scan cancelled")
             throw e
         } catch (e: Exception) {
-            DecodeResult.Failure(
-                "[${e::class.simpleName}] ${e.message}"
-            )
+            fail("detect and decode", e, null)
         }
     }
 
     /**
      * 将 uri 读取为 Bitmap。
      *
-     * 先只读尺寸，再按长边不超过 [MAX_DECODE_SIDE] 降采样解码。
-     * 直接按原图解码时，一张 4000×3000 的照片就要 48 MB，识别过程还会再翻倍。
+     * 只打开一次流、把字节读进内存后再解码两次（一次读尺寸、一次按采样率解码）。
+     * 有些 ContentProvider 给的是一次性流，重复打开会失败，因此不能分两次 open。
      */
-    private fun loadBitmap(uri: Uri): Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: return null
+    private fun loadBitmap(uri: Uri): Bitmap {
+        val stream = context.contentResolver.openInputStream(uri)
+        if (stream == null) {
+            Log.w(TAG, "openInputStream returned null: $uri")
+            throw ImageLoadException(context.getString(R.string.error_image_unreadable))
+        }
+        val bytes = stream.use { it.readBytes() }
 
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            Log.w(
+                TAG,
+                "cannot read bounds: $uri (${bytes.size} bytes, " +
+                    "${bounds.outWidth}x${bounds.outHeight})"
+            )
+            throw ImageLoadException(context.getString(R.string.error_image_undecodable))
+        }
 
         val options = BitmapFactory.Options().apply {
             inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight)
         }
-        return context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, options)
-        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            ?: run {
+                Log.w(TAG, "decode returned null: $uri (${bytes.size} bytes)")
+                throw ImageLoadException(context.getString(R.string.error_image_undecodable))
+            }
     }
 
     /** 返回 2 的幂的采样率，使解码后的长边不超过 [MAX_DECODE_SIDE]。 */
@@ -162,3 +190,6 @@ class WeChatQrScanner(private val context: Context) : BarcodeScanner {
         }
     }
 }
+
+/** 读图失败：message 直接作为用户可见原因，详细原因由 [WeChatQrScanner] 记入日志。 */
+private class ImageLoadException(message: String) : Exception(message)

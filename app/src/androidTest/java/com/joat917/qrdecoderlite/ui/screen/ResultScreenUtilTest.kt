@@ -1,6 +1,7 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
+import androidx.compose.ui.graphics.toArgb
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -96,12 +97,12 @@ class ResultScreenUtilTest {
 
     @Test
     fun palette_strokeColors() {
-        assertEquals(0xFF673AB7.toInt(), barcodePalette[0].stroke.value.toInt())
-        assertEquals(0xFFFF5722.toInt(), barcodePalette[1].stroke.value.toInt())
-        assertEquals(0xFF009688.toInt(), barcodePalette[2].stroke.value.toInt())
-        assertEquals(0xFFE91E63.toInt(), barcodePalette[3].stroke.value.toInt())
-        assertEquals(0xFF3F51B5.toInt(), barcodePalette[4].stroke.value.toInt())
-        assertEquals(0xFFFFA000.toInt(), barcodePalette[5].stroke.value.toInt())
+        assertEquals(0xFF673AB7.toInt(), barcodePalette[0].stroke.toArgb())
+        assertEquals(0xFFFF5722.toInt(), barcodePalette[1].stroke.toArgb())
+        assertEquals(0xFF009688.toInt(), barcodePalette[2].stroke.toArgb())
+        assertEquals(0xFFE91E63.toInt(), barcodePalette[3].stroke.toArgb())
+        assertEquals(0xFF3F51B5.toInt(), barcodePalette[4].stroke.toArgb())
+        assertEquals(0xFFFFA000.toInt(), barcodePalette[5].stroke.toArgb())
     }
 
     @Test

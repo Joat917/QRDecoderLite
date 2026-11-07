@@ -1,6 +1,7 @@
 package com.joat917.qrdecoderlite.ui.screen
 
 import android.graphics.PointF
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -36,6 +37,7 @@ import kotlin.math.roundToInt
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +52,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -57,9 +60,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
+import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.toErrorReason
+
+private const val TAG = "ResultScreen"
 
 // ── 调色板 ────────────────────────────────────────────────────────────
 
@@ -133,7 +141,7 @@ private fun isPointOnSegment(point: PointF, a: PointF, b: PointF): Boolean {
     val cross = dx * (point.y - a.y) - dy * (point.x - a.x)
     if (abs(cross) > 1e-3f) return false
     val dot = (point.x - a.x) * dx + (point.y - a.y) * dy
-    return dot >= 0f && dot <= lengthSq
+    return dot in 0f..lengthSq
 }
 
 internal fun String.isUrl(): Boolean =
@@ -175,7 +183,7 @@ fun ResultScreen(
             IconButton(onClick = onBackToMain) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回"
+                    contentDescription = stringResource(R.string.cd_back)
                 )
             }
 
@@ -227,11 +235,11 @@ fun ResultScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { onCopy(activeBarcode.content); dismissMenu() }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "复制")
+                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                         }
                         if (activeBarcode.content.isUrl()) {
                             IconButton(onClick = { onOpenLink(activeBarcode.content); dismissMenu() }) {
-                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "打开")
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = stringResource(R.string.action_open))
                             }
                         }
                     }
@@ -250,10 +258,18 @@ private fun ImageWithOverlay(
     onBarcodeClick: (Int, Offset) -> Unit
 ) {
     val painter = rememberAsyncImagePainter(model = imageUri)
+    // Coil 3 的 AsyncImagePainter.state 是 StateFlow，不是 Compose 快照状态。
+    // 直接读 painter.state 只拿到首次组合时的值，必须 collectAsState 才能跟随变化。
+    val painterState by painter.state.collectAsState()
+    val loadError = (painterState as? AsyncImagePainter.State.Error)?.result?.throwable
     val imageSize = painter.intrinsicSize
     var displaySize by remember { mutableStateOf(IntSize.Zero) }
     var boxWindowPos by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
+
+    LaunchedEffect(loadError, imageUri) {
+        if (loadError != null) Log.w(TAG, "load image failed: $imageUri", loadError)
+    }
 
     Box(
         modifier = Modifier
@@ -262,12 +278,30 @@ private fun ImageWithOverlay(
     ) {
         Image(
             painter = painter,
-            contentDescription = "选中图片",
+            contentDescription = stringResource(R.string.cd_selected_image),
             modifier = Modifier
                 .fillMaxWidth()
                 .onSizeChanged { displaySize = it },
             contentScale = ContentScale.FillWidth
         )
+
+        // 图片加载失败时留一块区域显示原因，而不是一片空白
+        if (loadError != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = loadError.toErrorReason(stringResource(R.string.error_image_load_failed)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
 
         // 多边形覆盖层（仅在有条码结果时绘制）
         if (!barcodes.isNullOrEmpty()
@@ -318,7 +352,7 @@ private fun ImageWithOverlay(
 @Composable
 private fun DecodingIndicator() {
     Text(
-        text = "正在识别…",
+        text = stringResource(R.string.status_decoding),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 32.dp),
@@ -332,7 +366,7 @@ private fun DecodingIndicator() {
 @Composable
 private fun NoResultIndicator() {
     Text(
-        text = "未识别到二维码",
+        text = stringResource(R.string.status_no_barcode),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 32.dp),
@@ -365,7 +399,7 @@ private fun ErrorDisplay(error: String) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "图片解析失败",
+                    text = stringResource(R.string.error_card_title),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )

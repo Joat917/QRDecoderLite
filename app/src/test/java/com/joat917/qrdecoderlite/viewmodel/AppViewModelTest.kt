@@ -231,9 +231,8 @@ class AppViewModelTest {
 
         assertNull(viewModel.decodeUiState.value.barcodes)
         assertNotNull(viewModel.decodeUiState.value.decodeError)
-        assertTrue(
-            viewModel.decodeUiState.value.decodeError?.contains("SecurityException") ?: false
-        )
+        // 用户看到的是异常自带的 message，不是包装后的套话
+        assertEquals("[SecurityException] 读取被拒绝", viewModel.decodeUiState.value.decodeError)
     }
 
     // ── 连续选图 ───────────────────────────────────────────────────────

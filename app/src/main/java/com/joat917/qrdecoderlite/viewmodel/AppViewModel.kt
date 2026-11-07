@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -14,18 +15,22 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.AppUiState
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodeUiState
 import com.joat917.qrdecoderlite.model.Sheet
 import com.joat917.qrdecoderlite.scanner.BarcodeScanner
 import com.joat917.qrdecoderlite.scanner.CombinedScanner
+import com.joat917.qrdecoderlite.util.toErrorReason
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+private const val TAG = "AppViewModel"
 
 class AppViewModel(
     application: Application,
@@ -64,11 +69,16 @@ class AppViewModel(
                 val result = try {
                     scanner.scan(uri)
                 } catch (e: CancellationException) {
+                    Log.d(TAG, "scan cancelled: $uri")
                     throw e
                 } catch (e: OutOfMemoryError) {
-                    DecodeResult.Failure("[OutOfMemoryError] 图片过大，内存不足，请换一张更小的图片")
+                    Log.w(TAG, "scan out of memory: $uri", e)
+                    DecodeResult.Failure(
+                        e.toErrorReason(getApplication<Application>().getString(R.string.error_out_of_memory))
+                    )
                 } catch (e: Throwable) {
-                    DecodeResult.Failure("[${e::class.simpleName}] ${e.message}")
+                    Log.w(TAG, "scan failed: $uri", e)
+                    DecodeResult.Failure(e.toErrorReason())
                 }
 
                 when (result) {
@@ -94,7 +104,7 @@ class AppViewModel(
     fun onCopy(content: String, context: Context) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("barcode", content))
-        Toast.makeText(context, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.toast_copied), Toast.LENGTH_SHORT).show()
     }
 
     /** 用系统浏览器打开 URL */
@@ -106,11 +116,11 @@ class AppViewModel(
         try {
             context.startActivity(intent)
         } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, "没有应用可打开此链接", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_no_app_for_link), Toast.LENGTH_SHORT).show()
         } catch (_: SecurityException) {
-            Toast.makeText(context, "没有权限打开此链接", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_no_permission_for_link), Toast.LENGTH_SHORT).show()
         } catch (_: Exception) {
-            Toast.makeText(context, "未知的异常导致无法打开此链接", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.toast_unknown_error_for_link), Toast.LENGTH_SHORT).show()
         }
     }
 

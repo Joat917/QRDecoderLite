@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,6 +67,7 @@ fun MainScreen(
 
     val context = LocalContext.current
     var photoUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    val permissionDeniedHint = stringResource(R.string.toast_camera_permission_denied)
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -83,7 +85,7 @@ fun MainScreen(
             val uri = photoUriString?.toUri()
             if (uri != null) cameraLauncher.launch(uri)
         } else {
-            Toast.makeText(context, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, permissionDeniedHint, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -117,7 +119,7 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = "QRDecode",
+                text = stringResource(R.string.logo_title),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -145,7 +147,7 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "从相册",
+                text = stringResource(R.string.entry_album),
                 fontSize = 16.sp
             )
         }
@@ -169,7 +171,7 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "从文件",
+                text = stringResource(R.string.entry_file),
                 fontSize = 16.sp
             )
         }
@@ -191,7 +193,7 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "从相机",
+                text = stringResource(R.string.entry_camera),
                 fontSize = 16.sp
             )
         }
@@ -214,7 +216,7 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "从历史",
+                text = stringResource(R.string.entry_history),
                 fontSize = 16.sp
             )
         }

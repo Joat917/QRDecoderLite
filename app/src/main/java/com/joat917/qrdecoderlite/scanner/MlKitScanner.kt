@@ -4,17 +4,22 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PointF
 import android.net.Uri
+import android.util.Log
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.joat917.qrdecoderlite.R
 import com.joat917.qrdecoderlite.model.DecodeResult
 import com.joat917.qrdecoderlite.model.DecodedBarcode
+import com.joat917.qrdecoderlite.util.toErrorReason
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.CancellationException
+
+private const val TAG = "MlKitScanner"
 
 /**
  * ML Kit 实现的解码器。
@@ -32,29 +37,22 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
         val image = try {
             InputImage.fromFilePath(context, uri)
         } catch (e: FileNotFoundException) {
-            return@withContext DecodeResult.Failure(
-                "[FileNotFoundException] 未找到图片文件，文件可能已被移动或删除"
-            )
+            return@withContext fail("open $uri", e, R.string.error_file_not_found)
         } catch (e: IOException) {
-            return@withContext DecodeResult.Failure(
-                "[IOException] 无法读取图片，请检查文件权限"
-            )
+            return@withContext fail("open $uri", e, R.string.error_io_read)
         } catch (e: IllegalArgumentException) {
-            return@withContext DecodeResult.Failure(
-                "[IllegalArgumentException] 不支持的图片格式或无效的文件路径"
-            )
+            return@withContext fail("open $uri", e, R.string.error_unsupported_image)
         } catch (e: Exception) {
-            return@withContext DecodeResult.Failure(
-                "[${e::class.simpleName}] ${e.message}"
-            )
+            return@withContext fail("open $uri", e, null)
         }
         processImage(image)
     }
 
     override suspend fun scan(bitmap: Bitmap): DecodeResult = withContext(Dispatchers.IO) {
         if (bitmap.isRecycled) {
+            Log.w(TAG, "scan rejected: bitmap is recycled")
             return@withContext DecodeResult.Failure(
-                "[IllegalStateException] 图片数据已失效，请重新选择"
+                "[IllegalStateException] ${context.getString(R.string.error_image_recycled)}"
             )
         }
         val image = InputImage.fromBitmap(bitmap, 0)
@@ -67,22 +65,38 @@ class MlKitScanner(private val context: Context) : BarcodeScanner {
 
     // ── 内部处理 ────────────────────────────────────────────────────────
 
+    /**
+     * 记录异常并转成用户可见的失败原因。
+     *
+     * 日志带完整异常对象，用户看到的是异常自带的 message；只有 message 为空时
+     * 才用 [fallbackRes] 的文字，避免用套话盖掉真实原因。
+     */
+    private fun fail(stage: String, e: Throwable, fallbackRes: Int?): DecodeResult.Failure {
+        Log.w(TAG, stage, e)
+        val fallback = fallbackRes?.let { context.getString(it) }
+        return DecodeResult.Failure(e.toErrorReason(fallback))
+    }
+
     private suspend fun processImage(image: InputImage): DecodeResult {
         return try {
             val rawBarcodes = barcodeScanner.process(image).await()
             val decoded = rawBarcodes.mapNotNull { it.toSortable() }
+            if (decoded.size < rawBarcodes.size) {
+                Log.d(
+                    TAG,
+                    "dropped ${rawBarcodes.size - decoded.size} of ${rawBarcodes.size} barcodes " +
+                        "without content or corner points"
+                )
+            }
             val sorted = decoded.sortToDecoded()
             DecodeResult.Success(sorted)
         } catch (e: CancellationException) {
+            Log.d(TAG, "scan cancelled")
             throw e   // 静默终止，由调用方协程框架处理
         } catch (e: com.google.mlkit.common.MlKitException) {
-            DecodeResult.Failure(
-                "[MlKitException] 二维码识别失败，请重试"
-            )
+            fail("process image", e, R.string.error_barcode_failed)
         } catch (e: Exception) {
-            DecodeResult.Failure(
-                "[${e::class.simpleName}] ${e.message}"
-            )
+            fail("process image", e, null)
         }
     }
 
