@@ -15,8 +15,8 @@ android {
         applicationId = "com.joat917.qrdecoderlite"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.1"
+        versionCode = 102
+        versionName = "1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
