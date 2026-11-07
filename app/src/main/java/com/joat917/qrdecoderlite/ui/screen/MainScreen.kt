@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.joat917.qrdecoderlite.R
+import com.joat917.qrdecoderlite.util.AppLog
+import com.joat917.qrdecoderlite.util.toErrorReason
 import com.joat917.qrdecoderlite.viewmodel.AppViewModel
 import java.io.File
 import androidx.core.net.toUri
@@ -68,6 +70,18 @@ fun MainScreen(
     val context = LocalContext.current
     var photoUriString by rememberSaveable { mutableStateOf<String?>(null) }
     val permissionDeniedHint = stringResource(R.string.toast_camera_permission_denied)
+    val launchFailedHint = stringResource(R.string.toast_launch_failed)
+
+    // 系统界面可能不存在：没有相机 App、没有文件选择器、FileProvider 配置不对。
+    // 拉起失败时记日志并提示，不要让 ActivityNotFoundException 把应用带崩
+    fun launchSafely(stage: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            AppLog.w("UI", "launch $stage failed", e)
+            Toast.makeText(context, e.toErrorReason(launchFailedHint), Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -83,19 +97,21 @@ fun MainScreen(
     ) { isGranted: Boolean ->
         if (isGranted) {
             val uri = photoUriString?.toUri()
-            if (uri != null) cameraLauncher.launch(uri)
+            if (uri != null) launchSafely("camera") { cameraLauncher.launch(uri) }
         } else {
             Toast.makeText(context, permissionDeniedHint, Toast.LENGTH_SHORT).show()
         }
     }
 
     fun launchCamera() {
-        val uri = createTempImageUri(context)
-        photoUriString = uri.toString()
-        if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            cameraLauncher.launch(uri)
-        } else {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
+        launchSafely("camera") {
+            val uri = createTempImageUri(context)
+            photoUriString = uri.toString()
+            if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                cameraLauncher.launch(uri)
+            } else {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            }
         }
     }
 
@@ -131,9 +147,11 @@ fun MainScreen(
         // "从相册" — 主按钮，可点击
         Button(
             onClick = {
-                photoPickerLauncher.launch(
-                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                )
+                launchSafely("photo picker") {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -157,7 +175,9 @@ fun MainScreen(
         // "从文件" — 系统文件选择器
         Button(
             onClick = {
-                filePickerLauncher.launch(arrayOf("image/*"))
+                launchSafely("file picker") {
+                    filePickerLauncher.launch(arrayOf("image/*"))
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
